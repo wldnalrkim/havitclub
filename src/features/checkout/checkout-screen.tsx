@@ -8,12 +8,31 @@ const statusOptions: { label: string; value: TaskStatus }[] = [
   { label: "미완료", value: "incomplete" },
 ];
 
-export function CheckoutScreen({ onDone }: { onDone: () => void }) {
+export function CheckoutScreen({
+  onDone,
+  onRecoveryCreated,
+}: {
+  onDone: () => void;
+  onRecoveryCreated: () => void;
+}) {
   const [statuses, setStatuses] = useState<Record<string, TaskStatus>>({});
   const [submitted, setSubmitted] = useState(false);
+  const [recoveryCreated, setRecoveryCreated] = useState(false);
 
   function updateStatus(taskId: string, status: TaskStatus) {
     setStatuses((current) => ({ ...current, [taskId]: status }));
+  }
+
+  function handleSubmit() {
+    const shouldCreateRecovery = Object.values(statuses).some(
+      (status) => status === "partial" || status === "incomplete",
+    );
+
+    if (shouldCreateRecovery) {
+      onRecoveryCreated();
+    }
+    setRecoveryCreated(shouldCreateRecovery);
+    setSubmitted(true);
   }
 
   if (submitted) {
@@ -24,11 +43,13 @@ export function CheckoutScreen({ onDone }: { onDone: () => void }) {
           <h1 className="mt-4 text-xl font-bold text-[#24734d]">오늘 기록을 남겼어요</h1>
           <p className="mt-2 text-sm leading-6 text-[#4d8064]">오늘 한 일을 확인하고, 내일을 조금 더 편하게 준비해요.</p>
         </div>
-        <div className="rounded-3xl bg-white p-5">
-          <StatusPill tone="amber">Recovery 1건 생성됨</StatusPill>
-          <p className="mt-3 text-sm font-semibold text-[#334e68]">남은 과업은 다음 일정으로 이어졌어요.</p>
-          <p className="mt-1 text-xs leading-5 text-[#8a98a8]">없애지 않고 다음 행동으로 연결해 두었습니다.</p>
-        </div>
+        {recoveryCreated && (
+          <div className="rounded-3xl bg-white p-5">
+            <StatusPill tone="amber">Recovery 1건 생성됨</StatusPill>
+            <p className="mt-3 text-sm font-semibold text-[#334e68]">남은 계획은 다음 일정으로 이어졌어요.</p>
+            <p className="mt-1 text-xs leading-5 text-[#8a98a8]">없애지 않고 다음 행동으로 연결해 두었습니다.</p>
+          </div>
+        )}
         <button className="w-full rounded-2xl bg-[#2f6690] px-4 py-4 text-sm font-bold text-white" onClick={onDone}>
           오늘 화면으로 돌아가기
         </button>
@@ -85,7 +106,7 @@ export function CheckoutScreen({ onDone }: { onDone: () => void }) {
 
       <button
         className="w-full rounded-2xl bg-[#2f6690] px-4 py-4 text-sm font-bold text-white transition hover:bg-[#255576]"
-        onClick={() => setSubmitted(true)}
+        onClick={handleSubmit}
       >
         오늘 기록 저장하기
       </button>

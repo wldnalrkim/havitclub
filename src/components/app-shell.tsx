@@ -5,9 +5,10 @@ import { DashboardScreen } from "@/features/dashboard/dashboard-screen";
 import { LoginScreen } from "@/features/auth/login-screen";
 import { CheckoutScreen } from "@/features/checkout/checkout-screen";
 import { PlanScreen } from "@/features/daily-plan/plan-screen";
+import { NextPlanScreen } from "@/features/recovery/next-plan-screen";
 import { TodayScreen } from "@/features/today/today-screen";
 import { Logo } from "@/components/ui";
-import type { Screen } from "@/lib/mock-data";
+import { mockPlan, type Recovery, type Screen, type Task } from "@/lib/mock-data";
 
 const navItems: { label: string; screen: Screen; icon: string }[] = [
   { label: "오늘", screen: "today", icon: "⌂" },
@@ -20,6 +21,9 @@ export function AppShell() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [screen, setScreen] = useState<Screen>("today");
   const [isLoading, setIsLoading] = useState(false);
+  const [planTasks, setPlanTasks] = useState<Task[]>([]);
+  const [plannedCheckOutTime, setPlannedCheckOutTime] = useState(mockPlan.plannedCheckOutTime);
+  const [recovery, setRecovery] = useState<Recovery | null>(null);
 
   function navigate(nextScreen: Screen) {
     setIsLoading(true);
@@ -52,10 +56,43 @@ export function AppShell() {
           </div>
         ) : (
           <>
-            {screen === "today" && <TodayScreen onNavigate={navigate} />}
-            {screen === "plan" && <PlanScreen onSaved={() => navigate("today")} />}
-            {screen === "checkout" && <CheckoutScreen onDone={() => navigate("today")} />}
+            {screen === "today" && (
+              <TodayScreen
+                onNavigate={navigate}
+                plannedCheckOutTime={plannedCheckOutTime}
+                recovery={recovery}
+                tasks={planTasks}
+              />
+            )}
+            {screen === "plan" && (
+              <PlanScreen
+                onCancel={() => navigate("today")}
+                onSave={(tasks, leaveTime) => {
+                  setPlanTasks(tasks);
+                  setPlannedCheckOutTime(leaveTime);
+                  navigate("today");
+                }}
+                plannedCheckOutTime={plannedCheckOutTime}
+                isInitialPlan={planTasks.length === 0}
+                tasks={planTasks}
+              />
+            )}
+            {screen === "checkout" && (
+              <CheckoutScreen
+                onDone={() => navigate("today")}
+                onRecoveryCreated={() =>
+                  setRecovery({
+                    title: "영어 단어 30개 복습",
+                    scheduledAt: "내일 저녁",
+                    status: "open",
+                  })
+                }
+              />
+            )}
             {screen === "dashboard" && <DashboardScreen />}
+            {screen === "next-plan" && recovery && (
+              <NextPlanScreen onBack={() => navigate("today")} recovery={recovery} />
+            )}
           </>
         )}
       </main>

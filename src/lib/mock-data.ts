@@ -1,6 +1,12 @@
-export type Screen = "today" | "plan" | "checkout" | "dashboard";
+export type Screen = "today" | "plan" | "checkout" | "dashboard" | "next-plan";
 
 export type TaskStatus = "pending" | "completed" | "partial" | "incomplete";
+
+export type Recovery = {
+  title: string;
+  scheduledAt: string;
+  status: "open" | "completed";
+};
 
 export type Task = {
   id: string;
@@ -9,6 +15,9 @@ export type Task = {
   status: TaskStatus;
   incompleteReason?: string;
 };
+
+export const subjectOptions = ["국어", "수학", "영어", "사회", "과학", "역사", "기타"] as const;
+export type SubjectOption = (typeof subjectOptions)[number];
 
 export type MockPlan = {
   plannedCheckOutTime: string;

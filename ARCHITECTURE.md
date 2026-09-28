@@ -148,7 +148,7 @@ id, studentId, date, plannedScheduleId, dailyCommitmentCheckOutTime,
 status, createdAt, updatedAt
 ```
 
-DailyPlan은 학생이 당일 제출하는 Daily Commitment를 표현합니다. `dailyCommitmentCheckOutTime`은 필요할 때만 제출하는 당일 하원시간 수정값이며, 핵심 과업도 이 계획에 포함됩니다.
+DailyPlan은 학생이 당일 제출하는 Daily Commitment를 표현합니다. `dailyCommitmentCheckOutTime`은 필요할 때만 제출하는 당일 하원시간 수정값이며, 핵심 계획도 이 계획에 포함됩니다.
 
 ### DailyTask
 
@@ -322,16 +322,16 @@ Notion Repository의 책임:
 
 학생은 날짜를 입력하지 않습니다. 서버가 `Asia/Seoul` 기준으로 오늘 날짜를 결정합니다.
 
-1. 학생이 예정 하원시간(필요한 경우)과 최대 3개 과업을 입력합니다.
+1. 학생이 예정 하원시간(필요한 경우)과 최대 3개 계획을 입력합니다.
 2. Client에서 사용성을 위한 1차 검사를 합니다.
 3. `POST /api/daily-plans`가 Zod로 서버 검증을 다시 합니다.
 4. 서버가 운영 시간대 기준 오늘 날짜와 세션의 `studentId`를 결정합니다.
-5. 서비스가 오늘 날짜·과업 수·수정 가능 여부를 Domain 규칙으로 검사합니다.
+5. 서비스가 오늘 날짜·계획 수·수정 가능 여부를 Domain 규칙으로 검사합니다.
 6. `DailyPlanRepository`가 저장합니다.
 7. 서버가 학생 화면용 응답만 반환합니다.
 8. UI는 성공 상태를 표시하고 오늘 화면으로 이동합니다.
 
-검증 기준과 최대 과업 수는 `shared/constants` 또는 정책 설정에 둡니다.
+검증 기준과 최대 계획 수는 `shared/constants` 또는 정책 설정에 둡니다.
 
 과거·미래 날짜 계획은 초기 MVP의 이 Use Case에서 허용하지 않습니다. 별도 날짜 계획 기능이 필요해질 때 새로운 Use Case로 설계합니다.
 
@@ -371,11 +371,11 @@ ActualAttendance와 비교
 
 ## 9. Checkout / Recovery 데이터 흐름
 
-1. 학생이 오늘 계획의 각 과업을 `completed`, `partial`, `incomplete` 중 하나로 선택합니다.
+1. 학생이 오늘 계획의 각 항목을 `completed`, `partial`, `incomplete` 중 하나로 선택합니다.
 2. `partial` 또는 `incomplete`에는 미완료 사유를 요구합니다.
 3. 서버가 계획의 소유자와 오늘 날짜를 다시 확인합니다.
 4. 서비스가 완료율과 Recovery 필요 여부를 결정합니다.
-5. 계획 과업 상태를 저장합니다.
+5. 계획 항목 상태를 저장합니다.
 6. Recovery가 필요하면 원래 `sourceTaskId`와 목적을 기준으로 기존 Recovery를 먼저 조회합니다.
 7. 동일 Recovery가 없을 때만 생성합니다.
 8. 학생에게는 저장 결과와 다음 행동만 반환합니다.
@@ -384,7 +384,7 @@ ActualAttendance와 비교
 Checkout 입력
   → 서버 검증
   → 학생 소유권 확인
-  → 과업 상태 저장
+  → 계획 항목 상태 저장
   → Recovery 필요 여부 계산
   → 기존 Recovery 확인
   → Recovery 생성(없을 때만)
@@ -421,7 +421,7 @@ Notion은 여러 작업을 하나의 transaction으로 보장하지 않으므로
 1. 오늘 날짜와 짧은 환영 문구
 2. 현재 상태 요약: 계획 여부, 등원·하원 정보
 3. 오늘의 핵심 행동 CTA
-4. 핵심 과업 미리보기
+4. 핵심 계획 미리보기
 5. Recovery가 있을 때만 복구 카드
 
 계획이 없으면 `오늘 계획 세우기`, 계획이 있으면 `체크아웃 준비하기`처럼 다음 행동을 하나로 명확하게 보여줍니다.
@@ -438,7 +438,7 @@ Notion은 여러 작업을 하나의 transaction으로 보장하지 않으므로
 ### Phase 1 UI 검증 기준
 
 - 로그인 후 오늘 해야 할 행동을 5초 안에 찾을 수 있는가
-- 계획 작성에서 과업 3개를 부담 없이 입력할 수 있는가
+- 계획 작성에서 계획 3개를 부담 없이 입력할 수 있는가
 - 체크아웃에서 완료 상태와 미완료 이유가 혼동되지 않는가
 - Recovery가 벌점처럼 느껴지지 않고 다음 행동으로 이해되는가
 - 모바일에서 스크롤과 버튼 터치가 불편하지 않은가
