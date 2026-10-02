@@ -1,4 +1,7 @@
 node_modules/
 .next/
-.env
-.env.local
+.env*
+.DS_Store
+**/.DS_Store
+*.tsbuildinfo
+Pretendard-1.3.9/
