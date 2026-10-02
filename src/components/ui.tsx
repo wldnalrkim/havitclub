@@ -1,4 +1,50 @@
 import type { ReactNode } from "react";
+import type { TaskStatus } from "@/lib/mock-data";
+
+const subjectTagStyles: Record<string, string> = {
+  국어: "bg-rose-50 text-rose-600",
+  수학: "bg-blue-50 text-blue-600",
+  영어: "bg-violet-50 text-violet-600",
+  사회: "bg-amber-50 text-amber-600",
+  과학: "bg-emerald-50 text-emerald-600",
+  역사: "bg-orange-50 text-orange-600",
+};
+
+export function SubjectTag({ subject }: { subject: string }) {
+  return (
+    <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${subjectTagStyles[subject] ?? "bg-slate-100 text-slate-600"}`}>
+      {subject}
+    </span>
+  );
+}
+
+export const taskStatusLabels: Record<TaskStatus, string> = {
+  completed: "완료",
+  partial: "일부 완료",
+  incomplete: "미완료",
+  pending: "확인 전",
+};
+
+const taskStatusStyles: Record<TaskStatus, string> = {
+  completed: "bg-emerald-50 text-emerald-600",
+  partial: "bg-orange-50 text-orange-600",
+  incomplete: "bg-red-50 text-red-600",
+  pending: "bg-[#eef1f4] text-[#607080]",
+};
+
+export function TaskStatusBadge({ status }: { status: TaskStatus }) {
+  return (
+    <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${taskStatusStyles[status]}`}>
+      {taskStatusLabels[status]}
+    </span>
+  );
+}
+
+export function CarryOverBadge() {
+  return (
+    <span className="shrink-0 rounded-full bg-[#fff4dc] px-2 py-0.5 text-[11px] font-bold text-[#966319]">↻ 이어서</span>
+  );
+}
 
 export function Logo() {
   return (

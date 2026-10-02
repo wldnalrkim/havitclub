@@ -22,25 +22,26 @@ export function getMockState(): MockState {
       recovery?: MockState["recoveries"][number];
     };
     const legacyRecovery = parsed.recovery;
+    const initialState = createInitialMockState();
+    const currentDate = parsed.currentDate ?? initialState.currentDate;
+    const storedRecoveries = Array.isArray(parsed.recoveries)
+      ? parsed.recoveries
+      : legacyRecovery
+        ? [legacyRecovery]
+        : [];
 
     return {
-      ...createInitialMockState(),
+      ...initialState,
       ...parsed,
-      recoveries: Array.isArray(parsed.recoveries)
-        ? parsed.recoveries.map((recovery) => ({
-            ...recovery,
-            sourceTaskId: recovery.sourceTaskId ?? `legacy-${recovery.title}`,
-            sourceTaskTitle: recovery.sourceTaskTitle ?? recovery.title,
-            sourceTaskStatus: recovery.sourceTaskStatus ?? "incomplete",
-          }))
-        : legacyRecovery
-          ? [{
-              ...legacyRecovery,
-              sourceTaskId: legacyRecovery.sourceTaskId ?? "legacy-recovery",
-              sourceTaskTitle: legacyRecovery.sourceTaskTitle ?? legacyRecovery.title,
-              sourceTaskStatus: legacyRecovery.sourceTaskStatus ?? "incomplete",
-            }]
-          : [],
+      currentDate,
+      history: Array.isArray(parsed.history) ? parsed.history : [],
+      recoveries: storedRecoveries.map((recovery) => ({
+        ...recovery,
+        sourceTaskId: recovery.sourceTaskId ?? `legacy-${recovery.title}`,
+        sourceTaskTitle: recovery.sourceTaskTitle ?? recovery.title,
+        sourceTaskStatus: recovery.sourceTaskStatus ?? "incomplete",
+        sourceDate: recovery.sourceDate ?? currentDate,
+      })),
     };
   } catch {
     return createInitialMockState();

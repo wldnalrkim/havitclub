@@ -97,6 +97,13 @@ export function LoginScreen({ onLogin }: { onLogin: (phoneSuffix: string, pin: s
             <button className="mt-6 w-full rounded-2xl bg-[#2f6690] px-4 py-4 text-sm font-bold text-white" type="submit">
               PIN 설정하고 시작하기
             </button>
+            <button
+              className="mt-2 w-full py-3 text-sm font-semibold text-[#718096]"
+              onClick={() => { setStep("identify"); setPin(""); setPinConfirmation(""); setError(""); }}
+              type="button"
+            >
+              이전으로
+            </button>
           </form>
         ) : (
           <form className="mt-8" onSubmit={handleIdentify}>
@@ -124,11 +131,10 @@ export function LoginScreen({ onLogin }: { onLogin: (phoneSuffix: string, pin: s
                 id="phone-suffix"
                 inputMode="numeric"
                 maxLength={4}
-                onChange={(event) => setPhoneSuffix(event.target.value.replace(/\D/g, ""))}
+                onChange={(event) => { setPhoneSuffix(event.target.value.replace(/\D/g, "")); setError(""); }}
                 placeholder="0000"
                 value={phoneSuffix}
               />
-              <span className="text-xl text-[#a9b5bf]">⌕</span>
             </div>
             <label className="mt-4 block text-sm font-bold text-[#334e68]" htmlFor="auth-code">
               {mode === "activate" ? "코치님에게 받은 초기 코드" : "개인 PIN"}
@@ -139,12 +145,17 @@ export function LoginScreen({ onLogin }: { onLogin: (phoneSuffix: string, pin: s
               id="auth-code"
               inputMode="numeric"
               maxLength={6}
-              onChange={(event) => (mode === "activate" ? setInitialCode(event.target.value.replace(/\D/g, "")) : setPin(event.target.value.replace(/\D/g, "")))}
+              onChange={(event) => {
+                const value = event.target.value.replace(/\D/g, "");
+                if (mode === "activate") setInitialCode(value);
+                else setPin(value);
+                setError("");
+              }}
               placeholder="000000"
               type="password"
               value={mode === "activate" ? initialCode : pin}
             />
-            <p className="mt-3 text-xs leading-5 text-[#8a98a8]">
+            <p className="mt-3 text-xs leading-5 text-[#6b7b8c]">
               {mode === "activate" ? "초기 코드는 최초 등록에 한 번만 사용돼요." : "전화번호 뒷자리는 학생 확인용으로만 사용돼요."}
             </p>
             {error && <p className="mt-2 text-sm font-medium text-[#b45353]" role="alert">{error}</p>}

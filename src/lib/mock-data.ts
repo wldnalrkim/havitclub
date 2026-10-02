@@ -5,10 +5,13 @@ export type TaskStatus = "pending" | "completed" | "partial" | "incomplete";
 export type Recovery = {
   sourceTaskId: string;
   sourceTaskTitle: string;
+  sourceTaskSubject?: string;
   sourceTaskStatus: "partial" | "incomplete" | "completed";
+  sourceDate: string;
   title: string;
   scheduledAt: string;
-  status: "open" | "completed";
+  // open: 아직 이어서 하지 않음 · completed: 이어서 완료함 · carried_over: 이어서 했지만 다시 Recovery로 넘어감
+  status: "open" | "completed" | "carried_over";
   incompleteReason?: string;
 };
 
@@ -18,6 +21,13 @@ export type Task = {
   subject: string;
   status: TaskStatus;
   incompleteReason?: string;
+  recoverySourceTaskId?: string;
+};
+
+export type DailyRecord = {
+  date: string;
+  plannedCheckOutTime: string;
+  tasks: Task[];
 };
 
 export const subjectOptions = ["국어", "수학", "영어", "사회", "과학", "역사", "기타"] as const;
@@ -33,14 +43,6 @@ export const mockPlan: MockPlan = {
   tasks: [],
 };
 
-export const mockDashboard = {
-  attendanceDays: 4,
-  plannedMinutes: 1_020,
-  actualMinutes: 975,
-  completionRate: 78,
-  openRecoveryCount: 1,
-};
-
 export const incompleteReasons = [
   "시간이 부족했어요",
   "계획량이 많았어요",
@@ -49,10 +51,11 @@ export const incompleteReasons = [
   "집중하기 어려웠어요",
 ];
 
-export function formatToday() {
+export function formatDateLabel(date: string) {
+  const [year, month, day] = date.split("-").map(Number);
   return new Intl.DateTimeFormat("ko-KR", {
     month: "long",
     day: "numeric",
     weekday: "long",
-  }).format(new Date(2026, 8, 25));
+  }).format(new Date(year, month - 1, day));
 }

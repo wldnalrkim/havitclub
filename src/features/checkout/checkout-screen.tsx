@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { incompleteReasons, type Recovery, type Task, type TaskStatus } from "@/lib/mock-data";
-import { StatusPill } from "@/components/ui";
+import { CarryOverBadge, StatusPill, SubjectTag, TaskStatusBadge, taskStatusLabels } from "@/components/ui";
 
 const statusOptions: { label: string; value: TaskStatus }[] = [
   { label: "완료", value: "completed" },
@@ -25,12 +25,10 @@ export function CheckoutScreen({
   tasks: Task[];
 }) {
   const planTasks = tasks;
-  const [statuses, setStatuses] = useState<Record<string, TaskStatus>>(
-    () => Object.fromEntries(planTasks.map((task) => [task.id, task.status])) as Record<string, TaskStatus>,
-  );
-  const [reasons, setReasons] = useState<Record<string, string>>(
-    () => Object.fromEntries(planTasks.map((task) => [task.id, task.incompleteReason ?? ""])),
-  );
+  const savedStatuses = () => Object.fromEntries(planTasks.map((task) => [task.id, task.status])) as Record<string, TaskStatus>;
+  const savedReasons = () => Object.fromEntries(planTasks.map((task) => [task.id, task.incompleteReason ?? ""]));
+  const [statuses, setStatuses] = useState<Record<string, TaskStatus>>(savedStatuses);
+  const [reasons, setReasons] = useState<Record<string, string>>(savedReasons);
   const [submitted, setSubmitted] = useState(false);
   const [createdRecoveries, setCreatedRecoveries] = useState<Recovery[]>([]);
   const [submitError, setSubmitError] = useState("");
@@ -49,7 +47,7 @@ export function CheckoutScreen({
   }
 
   function handleSubmit() {
-    const hasUnselectedTask = planTasks.some((task) => !statuses[task.id]);
+    const hasUnselectedTask = planTasks.some((task) => !statuses[task.id] || statuses[task.id] === "pending");
     const hasMissingReason = planTasks.some((task) => {
       const status = statuses[task.id];
       return (status === "partial" || status === "incomplete") && !reasons[task.id];
@@ -83,11 +81,17 @@ export function CheckoutScreen({
             <div className="mt-3 space-y-2">
               {createdRecoveries.map((recovery) => (
                 <div className="rounded-2xl bg-[#f7f9fa] p-3" key={recovery.sourceTaskId}>
-                  <p className="text-sm font-semibold text-[#334e68]">{recovery.sourceTaskTitle}</p>
-                  <p className="mt-1 text-xs text-[#8a98a8]">미완료 이유: {recovery.incompleteReason ?? "다음 일정으로 이어짐"}</p>
+                  <div className="flex items-center gap-2">
+                    {recovery.sourceTaskSubject && <SubjectTag subject={recovery.sourceTaskSubject} />}
+                    <p className="min-w-0 flex-1 truncate text-sm font-semibold text-[#334e68]">{recovery.sourceTaskTitle}</p>
+                  </div>
+                  <p className="mt-1.5 text-xs text-[#6b7b8c]">
+                    {taskStatusLabels[recovery.sourceTaskStatus]} 이유: {recovery.incompleteReason ?? "다음 일정으로 이어짐"}
+                  </p>
                 </div>
               ))}
             </div>
+            <p className="mt-3 text-xs leading-5 text-[#6b7b8c]">다음 날 계획을 세울 때 자동으로 채워져요.</p>
           </div>
         )}
         <button className="w-full rounded-2xl bg-[#2f6690] px-4 py-4 text-sm font-bold text-white" onClick={onDone}>
@@ -126,16 +130,19 @@ export function CheckoutScreen({
           return (
             <section className="rounded-3xl bg-white p-5" key={task.id}>
               <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs text-[#8a98a8]">{task.subject}</p>
-                  <h2 className="mt-1 text-sm font-bold text-[#334e68]">{task.title}</h2>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <SubjectTag subject={task.subject} />
+                    {task.recoverySourceTaskId && <CarryOverBadge />}
+                  </div>
+                  <h2 className="mt-2 text-sm font-bold text-[#334e68]">{task.title}</h2>
                 </div>
-                {selected && <StatusPill tone={selected === "completed" ? "green" : "amber"}>{selected === "completed" ? "완료" : "기록 중"}</StatusPill>}
+                {selected && selected !== "pending" && <TaskStatusBadge status={selected} />}
               </div>
               <div className="mt-4 grid grid-cols-3 gap-2">
                 {statusOptions.map((option) => (
                   <button
-                    className={`rounded-xl border px-2 py-2.5 text-xs font-semibold transition ${
+                    className={`min-h-11 rounded-xl border px-2 py-2.5 text-xs font-semibold transition ${
                         selected === option.value
                         ? statusStyles[option.value]
                         : statusStyles.pending
@@ -170,10 +177,17 @@ export function CheckoutScreen({
         {isAlreadySubmitted && !submitted && (
           <button
             className="flex-1 rounded-2xl border border-[#b8ccda] px-4 py-4 text-sm font-bold text-[#2f6690]"
-            onClick={() => setIsEditing(true)}
+            onClick={() => {
+              if (isEditing) {
+                setStatuses(savedStatuses());
+                setReasons(savedReasons());
+                setSubmitError("");
+              }
+              setIsEditing(!isEditing);
+            }}
             type="button"
           >
-            수정하기
+            {isEditing ? "수정 취소" : "수정하기"}
           </button>
         )}
         {isAlreadySubmitted && !submitted && !isEditing ? (

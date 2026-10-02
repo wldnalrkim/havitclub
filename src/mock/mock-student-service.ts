@@ -1,4 +1,5 @@
-import type { Recovery, Task, TaskStatus } from "@/lib/mock-data";
+import type { DailyRecord, Recovery, Task, TaskStatus } from "@/lib/mock-data";
+import { addDays } from "@/lib/progress";
 import {
   getMockState,
   saveMockState,
@@ -9,6 +10,10 @@ function updateState(update: (state: MockState) => MockState) {
   const nextState = update(getMockState());
   saveMockState(nextState);
   return nextState;
+}
+
+function isRecoveryStatus(status: TaskStatus): status is "partial" | "incomplete" {
+  return status === "partial" || status === "incomplete";
 }
 
 export function getMockStudentState() {
@@ -35,60 +40,87 @@ export function submitMockCheckout(
   statuses: Record<string, TaskStatus>,
   incompleteReasons: Record<string, string>,
 ) {
-  const recoveryTasks = tasks.filter((task) => {
-    const status = statuses[task.id];
-    return status === "partial" || status === "incomplete";
-  });
+  return updateState((state) => {
+    const today = state.currentDate;
+    const checkedTasks = tasks.map((task) => {
+      const status = statuses[task.id] ?? task.status;
+      return {
+        ...task,
+        status,
+        incompleteReason: isRecoveryStatus(status) ? incompleteReasons[task.id] || undefined : undefined,
+      };
+    });
 
-  const stateWithCheckout = updateState((state) => ({
-    ...state,
-    todayPlan: state.todayPlan
-      ? {
-          ...state.todayPlan,
-          tasks: tasks.map((task) => ({
-            ...task,
-            status: statuses[task.id] ?? task.status,
-            incompleteReason: incompleteReasons[task.id] || undefined,
-          })),
-        }
-      : state.todayPlan,
-  }));
+    // 오늘 이어서 한 이전 Recovery는 결과에 따라 해결 상태로 바꿉니다.
+    const carriedStatusBySourceId = new Map(
+      checkedTasks
+        .filter((task) => task.recoverySourceTaskId)
+        .map((task) => [task.recoverySourceTaskId as string, task.status]),
+    );
+    const previousRecoveries = state.recoveries
+      .filter((recovery) => recovery.sourceDate !== today)
+      .map((recovery) => {
+        const carriedStatus = carriedStatusBySourceId.get(recovery.sourceTaskId);
+        if (!carriedStatus) return recovery;
+        return { ...recovery, status: carriedStatus === "completed" ? "completed" as const : "carried_over" as const };
+      });
 
-  if (recoveryTasks.length === 0) return stateWithCheckout;
+    // 오늘 생성되는 Recovery는 체크아웃을 수정할 때마다 다시 계산해 중복과 누락을 막습니다.
+    const existingTodayRecoveries = new Map(
+      state.recoveries
+        .filter((recovery) => recovery.sourceDate === today)
+        .map((recovery) => [recovery.sourceTaskId, recovery]),
+    );
+    const todayRecoveries: Recovery[] = checkedTasks
+      .filter((task) => isRecoveryStatus(task.status))
+      .map((task) => ({
+        sourceTaskId: task.id,
+        sourceTaskTitle: task.title,
+        sourceTaskSubject: task.subject,
+        sourceTaskStatus: task.status as "partial" | "incomplete",
+        sourceDate: today,
+        title: task.title,
+        scheduledAt: existingTodayRecoveries.get(task.id)?.scheduledAt ?? "다음 계획",
+        status: "open",
+        incompleteReason: task.incompleteReason,
+      }));
 
-  const recoveryByTaskId = new Map(
-    stateWithCheckout.recoveries.map((recovery) => [recovery.sourceTaskId, recovery]),
-  );
-  const nextRecoveries: Recovery[] = recoveryTasks.map((task) => {
-    const existingRecovery = recoveryByTaskId.get(task.id);
     return {
-      sourceTaskId: task.id,
-      sourceTaskTitle: task.title,
-      sourceTaskStatus: statuses[task.id] as "partial" | "incomplete",
-      title: task.title,
-      scheduledAt: existingRecovery?.scheduledAt ?? "내일 저녁",
-      status: existingRecovery?.status ?? "open",
-      incompleteReason: incompleteReasons[task.id],
+      ...state,
+      todayPlan: state.todayPlan ? { ...state.todayPlan, tasks: checkedTasks } : state.todayPlan,
+      recoveries: [...previousRecoveries, ...todayRecoveries],
     };
   });
-  const recoveryTaskIds = new Set(recoveryTasks.map((task) => task.id));
-  const retainedRecoveries = stateWithCheckout.recoveries.filter(
-    (recovery) => !recoveryTaskIds.has(recovery.sourceTaskId),
-  );
+}
 
-  return updateState((state) => ({
-    ...state,
-    recoveries: [...retainedRecoveries, ...nextRecoveries],
-  }));
+// MOCK ONLY: 며칠 동안 사용하는 흐름을 테스트하기 위해 가상 날짜를 하루 넘깁니다.
+// Phase 2에서는 서버가 실제 날짜를 결정하므로 제거합니다.
+export function advanceMockDay() {
+  return updateState((state) => {
+    const todayRecord: DailyRecord | null = state.todayPlan
+      ? { date: state.currentDate, plannedCheckOutTime: state.todayPlan.plannedCheckOutTime, tasks: state.todayPlan.tasks }
+      : null;
+
+    return {
+      ...state,
+      currentDate: addDays(state.currentDate, 1),
+      todayPlan: null,
+      history: todayRecord
+        ? [...state.history.filter((record) => record.date !== state.currentDate), todayRecord]
+        : state.history,
+    };
+  });
 }
 
 export function getMockDashboardData() {
   const state = getMockState();
-  const taskCount = state.todayPlan?.tasks.length ?? 0;
+  const records: DailyRecord[] = state.todayPlan
+    ? [...state.history, { date: state.currentDate, plannedCheckOutTime: state.todayPlan.plannedCheckOutTime, tasks: state.todayPlan.tasks }]
+    : state.history;
 
   return {
-    ...state,
-    taskCount,
-    hasPlan: Boolean(state.todayPlan),
+    currentDate: state.currentDate,
+    records,
+    recoveries: state.recoveries,
   };
 }
