@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { incompleteReasons, mockPlan, type TaskStatus } from "@/lib/mock-data";
+import { incompleteReasons, type Recovery, type Task, type TaskStatus } from "@/lib/mock-data";
 import { StatusPill } from "@/components/ui";
 
 const statusOptions: { label: string; value: TaskStatus }[] = [
@@ -8,30 +8,64 @@ const statusOptions: { label: string; value: TaskStatus }[] = [
   { label: "미완료", value: "incomplete" },
 ];
 
+const statusStyles: Record<TaskStatus, string> = {
+  pending: "border-[#e1e8ed] text-[#718096] hover:border-[#9bb7c9]",
+  completed: "border-emerald-200 bg-emerald-50 text-emerald-600",
+  partial: "border-orange-200 bg-orange-50 text-orange-600",
+  incomplete: "border-red-200 bg-red-50 text-red-600",
+};
+
 export function CheckoutScreen({
   onDone,
-  onRecoveryCreated,
+  onSubmitted,
+  tasks,
 }: {
   onDone: () => void;
-  onRecoveryCreated: () => void;
+  onSubmitted: (statuses: Record<string, TaskStatus>, reasons: Record<string, string>) => Recovery[];
+  tasks: Task[];
 }) {
-  const [statuses, setStatuses] = useState<Record<string, TaskStatus>>({});
+  const planTasks = tasks;
+  const [statuses, setStatuses] = useState<Record<string, TaskStatus>>(
+    () => Object.fromEntries(planTasks.map((task) => [task.id, task.status])) as Record<string, TaskStatus>,
+  );
+  const [reasons, setReasons] = useState<Record<string, string>>(
+    () => Object.fromEntries(planTasks.map((task) => [task.id, task.incompleteReason ?? ""])),
+  );
   const [submitted, setSubmitted] = useState(false);
-  const [recoveryCreated, setRecoveryCreated] = useState(false);
+  const [createdRecoveries, setCreatedRecoveries] = useState<Recovery[]>([]);
+  const [submitError, setSubmitError] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
+  const isAlreadySubmitted = planTasks.length > 0 && planTasks.every((task) => task.status !== "pending");
+  const isReadOnly = isAlreadySubmitted && !isEditing && !submitted;
 
   function updateStatus(taskId: string, status: TaskStatus) {
+    if (isReadOnly) return;
     setStatuses((current) => ({ ...current, [taskId]: status }));
   }
 
-  function handleSubmit() {
-    const shouldCreateRecovery = Object.values(statuses).some(
-      (status) => status === "partial" || status === "incomplete",
-    );
+  function updateReason(taskId: string, reason: string) {
+    if (isReadOnly) return;
+    setReasons((current) => ({ ...current, [taskId]: reason }));
+  }
 
-    if (shouldCreateRecovery) {
-      onRecoveryCreated();
+  function handleSubmit() {
+    const hasUnselectedTask = planTasks.some((task) => !statuses[task.id]);
+    const hasMissingReason = planTasks.some((task) => {
+      const status = statuses[task.id];
+      return (status === "partial" || status === "incomplete") && !reasons[task.id];
+    });
+
+    if (hasUnselectedTask) {
+      setSubmitError("모든 계획의 상태를 선택해 주세요.");
+      return;
     }
-    setRecoveryCreated(shouldCreateRecovery);
+    if (hasMissingReason) {
+      setSubmitError("일부 완료 또는 미완료 계획의 이유를 선택해 주세요.");
+      return;
+    }
+
+    setSubmitError("");
+    setCreatedRecoveries(onSubmitted(statuses, reasons));
     setSubmitted(true);
   }
 
@@ -43,13 +77,34 @@ export function CheckoutScreen({
           <h1 className="mt-4 text-xl font-bold text-[#24734d]">오늘 기록을 남겼어요</h1>
           <p className="mt-2 text-sm leading-6 text-[#4d8064]">오늘 한 일을 확인하고, 내일을 조금 더 편하게 준비해요.</p>
         </div>
-        {recoveryCreated && (
+        {createdRecoveries.length > 0 && (
           <div className="rounded-3xl bg-white p-5">
-            <StatusPill tone="amber">Recovery 1건 생성됨</StatusPill>
-            <p className="mt-3 text-sm font-semibold text-[#334e68]">남은 계획은 다음 일정으로 이어졌어요.</p>
-            <p className="mt-1 text-xs leading-5 text-[#8a98a8]">없애지 않고 다음 행동으로 연결해 두었습니다.</p>
+            <StatusPill tone="amber">Recovery {createdRecoveries.length}건 생성됨</StatusPill>
+            <div className="mt-3 space-y-2">
+              {createdRecoveries.map((recovery) => (
+                <div className="rounded-2xl bg-[#f7f9fa] p-3" key={recovery.sourceTaskId}>
+                  <p className="text-sm font-semibold text-[#334e68]">{recovery.sourceTaskTitle}</p>
+                  <p className="mt-1 text-xs text-[#8a98a8]">미완료 이유: {recovery.incompleteReason ?? "다음 일정으로 이어짐"}</p>
+                </div>
+              ))}
+            </div>
           </div>
         )}
+        <button className="w-full rounded-2xl bg-[#2f6690] px-4 py-4 text-sm font-bold text-white" onClick={onDone}>
+          오늘 화면으로 돌아가기
+        </button>
+      </div>
+    );
+  }
+
+  if (planTasks.length === 0) {
+    return (
+      <div className="space-y-5">
+        <div>
+          <p className="text-sm font-medium text-[#718096]">체크아웃</p>
+          <h1 className="mt-2 text-2xl font-bold tracking-tight text-[#243b53]">아직 제출한 계획이 없어요</h1>
+          <p className="mt-2 text-sm leading-6 text-[#718096]">오늘 계획을 먼저 작성한 뒤 체크아웃할 수 있어요.</p>
+        </div>
         <button className="w-full rounded-2xl bg-[#2f6690] px-4 py-4 text-sm font-bold text-white" onClick={onDone}>
           오늘 화면으로 돌아가기
         </button>
@@ -66,7 +121,7 @@ export function CheckoutScreen({
       </div>
 
       <div className="space-y-3">
-        {mockPlan.tasks.map((task) => {
+        {planTasks.map((task) => {
           const selected = statuses[task.id];
           return (
             <section className="rounded-3xl bg-white p-5" key={task.id}>
@@ -81,12 +136,13 @@ export function CheckoutScreen({
                 {statusOptions.map((option) => (
                   <button
                     className={`rounded-xl border px-2 py-2.5 text-xs font-semibold transition ${
-                      selected === option.value
-                        ? "border-[#2f6690] bg-[#e7f0f8] text-[#2f6690]"
-                        : "border-[#e1e8ed] text-[#718096] hover:border-[#9bb7c9]"
+                        selected === option.value
+                        ? statusStyles[option.value]
+                        : statusStyles.pending
                     }`}
                     key={option.value}
                     onClick={() => updateStatus(task.id, option.value)}
+                    disabled={isReadOnly}
                     type="button"
                   >
                     {option.label}
@@ -94,7 +150,12 @@ export function CheckoutScreen({
                 ))}
               </div>
               {(selected === "partial" || selected === "incomplete") && (
-                <select className="mt-3 w-full rounded-xl border border-[#e1e8ed] bg-white px-3 py-3 text-sm text-[#607080]" defaultValue="">
+                <select
+                  className="mt-3 w-full rounded-xl border border-[#e1e8ed] bg-white px-3 py-3 text-sm text-[#607080]"
+                  disabled={isReadOnly}
+                  onChange={(event) => updateReason(task.id, event.target.value)}
+                  value={reasons[task.id] ?? ""}
+                >
                   <option disabled value="">이유를 선택해 주세요</option>
                   {incompleteReasons.map((reason) => <option key={reason}>{reason}</option>)}
                 </select>
@@ -104,12 +165,31 @@ export function CheckoutScreen({
         })}
       </div>
 
-      <button
-        className="w-full rounded-2xl bg-[#2f6690] px-4 py-4 text-sm font-bold text-white transition hover:bg-[#255576]"
-        onClick={handleSubmit}
-      >
-        오늘 기록 저장하기
-      </button>
+      {submitError && <p className="text-sm font-medium text-[#b45353]" role="alert">{submitError}</p>}
+      <div className="flex gap-3">
+        {isAlreadySubmitted && !submitted && (
+          <button
+            className="flex-1 rounded-2xl border border-[#b8ccda] px-4 py-4 text-sm font-bold text-[#2f6690]"
+            onClick={() => setIsEditing(true)}
+            type="button"
+          >
+            수정하기
+          </button>
+        )}
+        {isAlreadySubmitted && !submitted && !isEditing ? (
+          <button className="flex-1 rounded-2xl bg-[#eef4f7] px-4 py-4 text-sm font-bold text-[#7890a1]" disabled type="button">
+            오늘 기록 저장됨
+          </button>
+        ) : (
+          <button
+            className="flex-1 rounded-2xl bg-[#2f6690] px-4 py-4 text-sm font-bold text-white transition hover:bg-[#255576]"
+            onClick={handleSubmit}
+            type="button"
+          >
+            오늘 기록 저장하기
+          </button>
+        )}
+      </div>
     </div>
   );
 }

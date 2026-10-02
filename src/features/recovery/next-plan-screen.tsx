@@ -1,12 +1,18 @@
 import type { Recovery } from "@/lib/mock-data";
 import { StatusPill } from "@/components/ui";
 
+const recoveryCardStyles = {
+  partial: "border-orange-200 bg-orange-50/60",
+  incomplete: "border-red-200 bg-red-50/60",
+  completed: "border-emerald-200 bg-emerald-50/60",
+};
+
 export function NextPlanScreen({
   onBack,
-  recovery,
+  recoveries,
 }: {
   onBack: () => void;
-  recovery: Recovery;
+  recoveries: Recovery[];
 }) {
   return (
     <div className="space-y-5">
@@ -22,13 +28,19 @@ export function NextPlanScreen({
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-xs font-bold text-[#a4772b]">Recovery에서 이어진 계획</p>
-            <h2 className="mt-2 text-base font-bold text-[#76551e]">{recovery.title}</h2>
+            <h2 className="mt-2 text-base font-bold text-[#76551e]">{recoveries.length}건이 다음 계획에 반영됨</h2>
           </div>
           <StatusPill tone="amber">다음 계획</StatusPill>
         </div>
-        <div className="mt-4 rounded-2xl bg-white/70 p-4">
-          <p className="text-xs text-[#927442]">예정 시점</p>
-          <p className="mt-1 text-sm font-bold text-[#76551e]">{recovery.scheduledAt}</p>
+        <div className="mt-4 space-y-2">
+          {recoveries.map((recovery) => (
+            <div className={`rounded-2xl border p-4 ${recoveryCardStyles[recovery.sourceTaskStatus]}`} key={recovery.sourceTaskId}>
+              <p className="text-sm font-bold text-[#76551e]">{recovery.sourceTaskTitle}</p>
+              <p className="mt-1 text-xs text-[#927442]">
+                {recovery.sourceTaskStatus === "partial" ? "일부 완료" : recovery.sourceTaskStatus === "completed" ? "완료" : "미완료"} · {recovery.incompleteReason ?? recovery.scheduledAt}
+              </p>
+            </div>
+          ))}
         </div>
       </section>
 

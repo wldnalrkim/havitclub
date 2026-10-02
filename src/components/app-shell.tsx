@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DashboardScreen } from "@/features/dashboard/dashboard-screen";
 import { LoginScreen } from "@/features/auth/login-screen";
 import { CheckoutScreen } from "@/features/checkout/checkout-screen";
@@ -8,7 +8,8 @@ import { PlanScreen } from "@/features/daily-plan/plan-screen";
 import { NextPlanScreen } from "@/features/recovery/next-plan-screen";
 import { TodayScreen } from "@/features/today/today-screen";
 import { Logo } from "@/components/ui";
-import { mockPlan, type Recovery, type Screen, type Task } from "@/lib/mock-data";
+import { studentService } from "@/services/student-service";
+import { mockPlan, type Recovery, type Screen, type Task, type TaskStatus } from "@/lib/mock-data";
 
 const navItems: { label: string; screen: Screen; icon: string }[] = [
   { label: "오늘", screen: "today", icon: "⌂" },
@@ -19,11 +20,28 @@ const navItems: { label: string; screen: Screen; icon: string }[] = [
 
 export function AppShell() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(false);
+  const [studentName, setStudentName] = useState("");
   const [screen, setScreen] = useState<Screen>("today");
   const [isLoading, setIsLoading] = useState(false);
   const [planTasks, setPlanTasks] = useState<Task[]>([]);
   const [plannedCheckOutTime, setPlannedCheckOutTime] = useState(mockPlan.plannedCheckOutTime);
-  const [recovery, setRecovery] = useState<Recovery | null>(null);
+  const [recoveries, setRecoveries] = useState<Recovery[]>([]);
+
+  useEffect(() => {
+    const session = studentService.getSession();
+
+    if (session) {
+      const state = studentService.getState();
+      setStudentName(studentService.getStudent().name);
+      setPlanTasks(state.todayPlan?.tasks ?? []);
+      setPlannedCheckOutTime(state.todayPlan?.plannedCheckOutTime ?? mockPlan.plannedCheckOutTime);
+      setRecoveries(state.recoveries);
+      setIsLoggedIn(true);
+    }
+
+    setIsHydrated(true);
+  }, []);
 
   function navigate(nextScreen: Screen) {
     setIsLoading(true);
@@ -33,8 +51,34 @@ export function AppShell() {
     }, 180);
   }
 
+  function handleLogin(phoneSuffix: string, pin: string) {
+    const result = studentService.login(phoneSuffix, pin);
+    if (!result.success) return false;
+
+    const state = studentService.getState();
+    setStudentName(studentService.getStudent().name);
+    setPlanTasks(state.todayPlan?.tasks ?? []);
+    setPlannedCheckOutTime(state.todayPlan?.plannedCheckOutTime ?? mockPlan.plannedCheckOutTime);
+    setRecoveries(state.recoveries);
+    setIsLoggedIn(true);
+    return true;
+  }
+
+  function handleLogout() {
+    studentService.logout();
+    setIsLoggedIn(false);
+    setScreen("today");
+    setPlanTasks([]);
+    setPlannedCheckOutTime(mockPlan.plannedCheckOutTime);
+    setRecoveries([]);
+  }
+
+  if (!isHydrated) {
+    return <div className="grid min-h-screen place-items-center bg-[#f4f7f8] text-sm text-[#718096]">불러오는 중...</div>;
+  }
+
   if (!isLoggedIn) {
-    return <LoginScreen onLogin={() => setIsLoggedIn(true)} />;
+    return <LoginScreen onLogin={handleLogin} />;
   }
 
   return (
@@ -42,7 +86,7 @@ export function AppShell() {
       <header className="border-b border-[#e5ebef] bg-white">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-5 py-4">
           <Logo />
-          <button className="text-xs font-semibold text-[#8a98a8]" onClick={() => setIsLoggedIn(false)}>
+          <button className="text-xs font-semibold text-[#8a98a8]" onClick={handleLogout}>
             로그아웃
           </button>
         </div>
@@ -60,7 +104,8 @@ export function AppShell() {
               <TodayScreen
                 onNavigate={navigate}
                 plannedCheckOutTime={plannedCheckOutTime}
-                recovery={recovery}
+                recoveries={recoveries}
+                studentName={studentName}
                 tasks={planTasks}
               />
             )}
@@ -68,8 +113,9 @@ export function AppShell() {
               <PlanScreen
                 onCancel={() => navigate("today")}
                 onSave={(tasks, leaveTime) => {
-                  setPlanTasks(tasks);
-                  setPlannedCheckOutTime(leaveTime);
+                  const state = studentService.saveTodayPlan(leaveTime, tasks);
+                  setPlanTasks(state.todayPlan?.tasks ?? []);
+                  setPlannedCheckOutTime(state.todayPlan?.plannedCheckOutTime ?? leaveTime);
                   navigate("today");
                 }}
                 plannedCheckOutTime={plannedCheckOutTime}
@@ -80,18 +126,28 @@ export function AppShell() {
             {screen === "checkout" && (
               <CheckoutScreen
                 onDone={() => navigate("today")}
-                onRecoveryCreated={() =>
-                  setRecovery({
-                    title: "영어 단어 30개 복습",
-                    scheduledAt: "내일 저녁",
-                    status: "open",
-                  })
-                }
+                onSubmitted={(statuses: Record<string, TaskStatus>, reasons: Record<string, string>) => {
+                  const shouldCreateRecovery = Object.values(statuses).some(
+                    (status) => status === "partial" || status === "incomplete",
+                  );
+                  const state = studentService.submitCheckout(planTasks, statuses, reasons);
+                  setRecoveries(state.recoveries);
+                  return shouldCreateRecovery
+                    ? state.recoveries.filter((recovery) => statuses[recovery.sourceTaskId] === "partial" || statuses[recovery.sourceTaskId] === "incomplete")
+                    : [];
+                }}
+                tasks={planTasks}
               />
             )}
-            {screen === "dashboard" && <DashboardScreen />}
-            {screen === "next-plan" && recovery && (
-              <NextPlanScreen onBack={() => navigate("today")} recovery={recovery} />
+            {screen === "dashboard" && (
+              <DashboardScreen
+                hasPlan={studentService.getDashboardData().hasPlan}
+                recoveries={studentService.getDashboardData().recoveries}
+                taskCount={studentService.getDashboardData().taskCount}
+              />
+            )}
+            {screen === "next-plan" && recoveries.length > 0 && (
+              <NextPlanScreen onBack={() => navigate("today")} recoveries={recoveries} />
             )}
           </>
         )}

@@ -1,4 +1,4 @@
-import { formatToday, mockStudent, type Recovery, type Task } from "@/lib/mock-data";
+import { formatToday, type Recovery, type Task } from "@/lib/mock-data";
 import { EmptyState, StatusPill } from "@/components/ui";
 
 const subjectTagStyles: Record<string, string> = {
@@ -10,15 +10,23 @@ const subjectTagStyles: Record<string, string> = {
   역사: "bg-orange-50 text-orange-600",
 };
 
+const recoveryCardStyles = {
+  partial: "border-orange-200 bg-orange-50/60",
+  incomplete: "border-red-200 bg-red-50/60",
+  completed: "border-emerald-200 bg-emerald-50/60",
+};
+
 export function TodayScreen({
   onNavigate,
   plannedCheckOutTime,
-  recovery,
+  recoveries,
+  studentName,
   tasks,
 }: {
   onNavigate: (screen: "plan" | "checkout" | "next-plan") => void;
   plannedCheckOutTime: string;
-  recovery: Recovery | null;
+  recoveries: Recovery[];
+  studentName: string;
   tasks: Task[];
 }) {
   const hasPlan = tasks.length > 0;
@@ -28,7 +36,7 @@ export function TodayScreen({
       <div>
         <p className="text-sm font-medium text-[#718096]">{formatToday()}</p>
         <h1 className="mt-2 text-2xl font-bold tracking-tight text-[#243b53]">
-          오늘도 한 걸음, {mockStudent.name}님
+          오늘도 한 걸음, {studentName}님
         </h1>
       </div>
 
@@ -100,15 +108,25 @@ export function TodayScreen({
         />
       )}
 
-      {recovery?.status === "open" && (
+      {recoveries.length > 0 && (
         <section className="rounded-3xl border border-[#f4dcae] bg-[#fffaf0] p-5">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-xs font-bold text-[#a4772b]">Recovery · 이어서 하기</p>
-              <h2 className="mt-2 text-sm font-bold text-[#76551e]">{recovery.title}</h2>
-              <p className="mt-1 text-xs text-[#927442]">{recovery.scheduledAt}까지 마무리해요.</p>
+              <h2 className="mt-2 text-sm font-bold text-[#76551e]">미완료 계획 {recoveries.length}건이 다음 계획으로 이어졌어요.</h2>
+              <p className="mt-1 text-xs text-[#927442]">각 계획은 사라지지 않고 Recovery로 기록됩니다.</p>
             </div>
             <span className="rounded-full bg-[#f8e8bd] px-2.5 py-1 text-xs font-bold text-[#966319]">진행 중</span>
+          </div>
+          <div className="mt-4 space-y-2">
+            {recoveries.map((recovery) => (
+              <div className={`rounded-2xl border p-3 ${recoveryCardStyles[recovery.sourceTaskStatus]}`} key={recovery.sourceTaskId}>
+                <p className="text-sm font-semibold text-[#76551e]">{recovery.sourceTaskTitle}</p>
+                <p className="mt-1 text-xs text-[#927442]">
+                  {recovery.sourceTaskStatus === "partial" ? "일부 완료" : recovery.sourceTaskStatus === "completed" ? "완료" : "미완료"} · {recovery.incompleteReason ?? recovery.scheduledAt}
+                </p>
+              </div>
+            ))}
           </div>
           <button
             className="mt-4 w-full rounded-2xl bg-[#f3d58f] px-4 py-3 text-sm font-bold text-[#76551e] transition hover:bg-[#ebca7b]"
@@ -116,13 +134,6 @@ export function TodayScreen({
           >
             다음 계획 보기
           </button>
-        </section>
-      )}
-      {recovery?.status === "completed" && (
-        <section className="rounded-3xl border border-[#b8e0ca] bg-[#effaf3] p-5">
-          <p className="text-xs font-bold text-[#24734d]">Recovery 완료</p>
-          <p className="mt-2 text-sm font-semibold text-[#3b7658]">{recovery.title}</p>
-          <p className="mt-1 text-xs text-[#5f9275]">다음 계획으로 잘 이어졌어요.</p>
         </section>
       )}
     </div>

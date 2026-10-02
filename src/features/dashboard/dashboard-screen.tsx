@@ -1,26 +1,11 @@
 import { useState } from "react";
-import { mockDashboard } from "@/lib/mock-data";
+import type { Recovery } from "@/lib/mock-data";
 import { StatusPill } from "@/components/ui";
-
-const stats = [
-  { label: "출석일", value: `${mockDashboard.attendanceDays}일`, note: "이번 주" },
-  { label: "계획 체류", value: "17시간", note: "예정 기준" },
-  { label: "실제 체류", value: "16시간 15분", note: "출결 기록 기준" },
-  { label: "계획 완료율", value: `${mockDashboard.completionRate}%`, note: "핵심 계획" },
-];
 
 type DayRecord = {
   status: "complete" | "recovery" | "empty";
   summary: string;
   detail: string;
-};
-
-const dayRecords: Record<number, DayRecord> = {
-  21: { status: "complete", summary: "계획 3개 완료", detail: "실제 체류 4시간 20분" },
-  22: { status: "complete", summary: "계획 2개 완료", detail: "실제 체류 3시간 50분" },
-  23: { status: "recovery", summary: "Recovery 1건", detail: "영어 단어 복습 이어짐" },
-  24: { status: "complete", summary: "계획 3개 완료", detail: "실제 체류 4시간 10분" },
-  25: { status: "recovery", summary: "Recovery 진행 중", detail: "오늘 체크아웃 기록 기준" },
 };
 
 const calendarStatusStyles = {
@@ -29,8 +14,29 @@ const calendarStatusStyles = {
   empty: "bg-[#f7f9fa] text-[#a9b5bf]",
 };
 
-export function DashboardScreen() {
+export function DashboardScreen({
+  hasPlan,
+  recoveries,
+  taskCount,
+}: {
+  hasPlan: boolean;
+  recoveries: Recovery[];
+  taskCount: number;
+}) {
   const [selectedDay, setSelectedDay] = useState(25);
+  const stats = [
+    { label: "출석일", value: "—", note: "아직 기록 없음" },
+    { label: "계획 체류", value: hasPlan ? "기록 중" : "—", note: "계획 기준" },
+    { label: "실제 체류", value: "—", note: "출결 기록 없음" },
+    { label: "계획 수", value: hasPlan ? `${taskCount}개` : "—", note: "오늘 기준" },
+  ];
+  const dayRecords: Record<number, DayRecord> = hasPlan
+    ? {
+        25: recoveries.length > 0
+          ? { status: "recovery", summary: `Recovery ${recoveries.length}건`, detail: recoveries.map((recovery) => recovery.title).join(", ") }
+          : { status: "complete", summary: `${taskCount}개 계획 작성`, detail: "오늘 계획 제출 완료" },
+      }
+    : {};
   const selectedRecord = dayRecords[selectedDay] ?? {
     status: "empty" as const,
     summary: "기록 없음",
@@ -123,10 +129,10 @@ export function DashboardScreen() {
       <section className="rounded-3xl bg-white p-5">
         <div className="flex items-center justify-between">
           <h2 className="font-bold text-[#334e68]">Recovery</h2>
-          <StatusPill tone="amber">진행 중 1건</StatusPill>
+          <StatusPill tone="amber">진행 중 {recoveries.length}건</StatusPill>
         </div>
         <p className="mt-3 text-sm leading-6 text-[#718096]">
-          미완료 계획도 기록으로 남아 있어요. 다음 일정에 이어서 마무리하면 됩니다.
+          미완료 계획 {recoveries.length}건이 기록으로 남아 있어요. 다음 일정에 이어서 마무리하면 됩니다.
         </p>
       </section>
     </div>

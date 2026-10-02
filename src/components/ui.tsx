@@ -6,7 +6,7 @@ export function Logo() {
       <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#243b53] text-lg text-white">
         H
       </span>
-      <span className="font-semibold tracking-tight text-[#243b53]">Habit Club</span>
+      <span className="font-semibold tracking-tight text-[#243b53]">Havit Club</span>
     </div>
   );
 }

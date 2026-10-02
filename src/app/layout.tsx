@@ -15,7 +15,7 @@ const pretendard = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Habit Club",
+  title: "Havit Club",
   description: "학생용 습관 관리 웹",
 };
 

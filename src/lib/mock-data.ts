@@ -3,9 +3,13 @@ export type Screen = "today" | "plan" | "checkout" | "dashboard" | "next-plan";
 export type TaskStatus = "pending" | "completed" | "partial" | "incomplete";
 
 export type Recovery = {
+  sourceTaskId: string;
+  sourceTaskTitle: string;
+  sourceTaskStatus: "partial" | "incomplete" | "completed";
   title: string;
   scheduledAt: string;
   status: "open" | "completed";
+  incompleteReason?: string;
 };
 
 export type Task = {
@@ -24,19 +28,9 @@ export type MockPlan = {
   tasks: Task[];
 };
 
-export const mockStudent = {
-  name: "민서",
-  grade: "고등학교 1학년",
-  phoneSuffix: "1234",
-};
-
 export const mockPlan: MockPlan = {
   plannedCheckOutTime: "21:30",
-  tasks: [
-    { id: "task-1", title: "수학 문제집 2쪽 풀기", subject: "수학", status: "pending" },
-    { id: "task-2", title: "영어 단어 30개 복습", subject: "영어", status: "pending" },
-    { id: "task-3", title: "국어 지문 1개 읽기", subject: "국어", status: "pending" },
-  ],
+  tasks: [],
 };
 
 export const mockDashboard = {
