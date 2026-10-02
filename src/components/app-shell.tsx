@@ -8,6 +8,11 @@ import { PlanScreen } from "@/features/daily-plan/plan-screen";
 import { NextPlanScreen } from "@/features/recovery/next-plan-screen";
 import { TodayScreen } from "@/features/today/today-screen";
 import { Logo } from "@/components/ui";
+import {
+  getCurrentStudent,
+  loginWithStudentCode,
+  logoutCurrentStudent,
+} from "@/features/auth/auth-api";
 import { studentService } from "@/services/student-service";
 import { mockPlan, type Screen, type TaskStatus } from "@/lib/mock-data";
 import { createCarryOverTasks, getCarryOverRecoveries, isCheckedOut } from "@/lib/progress";
@@ -58,12 +63,14 @@ export function AppShell() {
   const [state, setState] = useState<StudentState | null>(null);
 
   useEffect(() => {
-    if (studentService.getSession()) {
-      setStudentName(studentService.getStudent().name);
-      setState(studentService.getState());
-      setIsLoggedIn(true);
-    }
-    setIsHydrated(true);
+    getCurrentStudent().then((student) => {
+      if (student) {
+        setStudentName(student.displayName);
+        setState(studentService.getState());
+        setIsLoggedIn(true);
+      }
+      setIsHydrated(true);
+    });
   }, []);
 
   function refresh() {
@@ -75,20 +82,23 @@ export function AppShell() {
     window.scrollTo({ top: 0 });
   }
 
-  function handleLogin(phoneSuffix: string, pin: string) {
-    const result = studentService.login(phoneSuffix, pin);
-    if (!result.success) return false;
+  async function handleLogin(studentCode: string) {
+    const result = await loginWithStudentCode(studentCode);
+    if (!result.ok) {
+      return { ok: false, message: result.message };
+    }
 
-    setStudentName(studentService.getStudent().name);
+    setStudentName(result.student.displayName);
     setState(studentService.getState());
     setIsLoggedIn(true);
-    return true;
+    return { ok: true };
   }
 
-  function handleLogout() {
-    studentService.logout();
+  async function handleLogout() {
+    await logoutCurrentStudent();
     setIsLogoutConfirmOpen(false);
     setIsLoggedIn(false);
+    setStudentName("");
     setScreen("today");
     setState(null);
   }
@@ -197,9 +207,8 @@ export function AppShell() {
         >
           <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-xl">
             <h2 className="text-lg font-bold text-[#243b53]" id="logout-title">로그아웃할까요?</h2>
-            {/* MOCK ONLY: Phase 1-B에서는 로그아웃이 테스트 기록 초기화를 겸합니다. 실제 서비스에서는 이 안내를 제거합니다. */}
             <p className="mt-2 text-sm leading-6 text-[#607080]">
-              테스트 모드에서는 로그아웃하면 지금까지 만든 계획과 기록이 모두 초기화돼요.
+              현재 로그인한 학생의 세션을 종료합니다.
             </p>
             <div className="mt-6 flex gap-3">
               <button
