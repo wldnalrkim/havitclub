@@ -52,7 +52,7 @@ export function LoginScreen({
                 value={studentCode}
               />
             </div>
-            <p className="mt-3 text-xs leading-5 text-[#6b7b8c]">전화번호 뒷자리가 아닌 학생 출결번호를 입력해 주세요.</p>
+            <p className="mt-3 text-xs leading-5 text-[#6b7b8c]">전화번호 뒷자리를 입력해 주세요.</p>
             {error && <p className="mt-2 text-sm font-medium text-[#b45353]" role="alert">{error}</p>}
             <button className="mt-6 w-full rounded-2xl bg-[#2f6690] px-4 py-4 text-sm font-bold text-white transition hover:bg-[#255576] disabled:cursor-not-allowed disabled:opacity-60" disabled={isSubmitting} type="submit">
               {isSubmitting ? "확인 중..." : "로그인하기"}
