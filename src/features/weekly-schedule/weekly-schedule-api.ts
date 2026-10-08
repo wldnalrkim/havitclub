@@ -11,7 +11,12 @@ export type WeeklyScheduleClient = {
 };
 
 type ScheduleResponse =
-  | { ok: true; schedule: WeeklyScheduleClient | null; created?: boolean }
+  | {
+      ok: true;
+      schedule: WeeklyScheduleClient | null;
+      created?: boolean;
+      idempotent?: boolean;
+    }
   | { ok: false; code?: string; message?: string; authenticated?: false };
 
 async function parseResponse(response: Response): Promise<ScheduleResponse> {

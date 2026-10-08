@@ -28,6 +28,7 @@ export type WeeklyScheduleValidationError =
   | "INVALID_TIME"
   | "ARRIVAL_AFTER_DEPARTURE"
   | "PAST_DATE_NOT_EDITABLE"
+  | "SCHEDULE_LOCKED"
   | "WEEK_NOT_EDITABLE";
 
 export class WeeklyScheduleError extends Error {

@@ -102,11 +102,13 @@ function handleDomainError(error: unknown) {
     INVALID_TIME: "등원·하원 시간을 올바르게 입력해주세요.",
     ARRIVAL_AFTER_DEPARTURE: "등원 시간은 하원 시간보다 빨라야 합니다.",
     PAST_DATE_NOT_EDITABLE: "지난 날짜의 계획은 수정할 수 없습니다.",
+    SCHEDULE_LOCKED: "확정된 주간 계획은 직접 수정할 수 없습니다. 변경이 필요한 경우 담당 코치에게 요청해주세요.",
     WEEK_NOT_EDITABLE: "이번 주 또는 다음 주 계획만 수정할 수 있습니다.",
   };
   const status =
     error.code === "WEEK_NOT_EDITABLE" ||
-    error.code === "PAST_DATE_NOT_EDITABLE"
+    error.code === "PAST_DATE_NOT_EDITABLE" ||
+    error.code === "SCHEDULE_LOCKED"
       ? 409
       : 400;
   return errorResponse(error.code, messages[error.code], status);
@@ -184,6 +186,7 @@ export async function PUT(request: Request) {
     return NextResponse.json({
       ok: true,
       created: result.created,
+      idempotent: result.idempotent,
       schedule: clientSchedule(result.schedule),
     });
   } catch (error) {

@@ -13,9 +13,4 @@ export interface WeeklyScheduleRepository {
     input: WeeklyScheduleInput,
     submittedAt: string,
   ): Promise<WeeklySchedule>;
-  update(
-    existing: WeeklySchedule,
-    input: WeeklyScheduleInput,
-    updatedAt: string,
-  ): Promise<WeeklySchedule>;
 }

@@ -24,7 +24,7 @@ export class WeeklyScheduleService {
     studentId: string,
     input: WeeklyScheduleInput,
     now = new Date(),
-  ): Promise<{ schedule: WeeklySchedule; created: boolean }> {
+  ): Promise<{ schedule: WeeklySchedule; created: boolean; idempotent: boolean }> {
     validateWeeklyScheduleInput(input, now);
     if (!isEditableWeek(input.weekStartDate, now)) {
       throw new WeeklyScheduleError("WEEK_NOT_EDITABLE");
@@ -34,36 +34,38 @@ export class WeeklyScheduleService {
       studentId,
       input.weekStartDate,
     );
+    if (existing) {
+      const isSamePlan = existing.days.every((day, index) => {
+        const inputDay = input.days[index];
+        return (
+          inputDay &&
+          day.date === inputDay.date &&
+          day.isPlanned === inputDay.isPlanned &&
+          day.plannedArrivalTime === inputDay.plannedArrivalTime &&
+          day.plannedDepartureTime === inputDay.plannedDepartureTime
+        );
+      });
+
+      if (isSamePlan) {
+        return { schedule: existing, created: false, idempotent: true };
+      }
+      throw new WeeklyScheduleError("SCHEDULE_LOCKED");
+    }
+
     const todayDate = getTodaySeoulDate(now);
 
-    input.days.forEach((day, index) => {
+    input.days.forEach((day) => {
       if (day.date >= todayDate) return;
-      const existingDay = existing?.days[index];
       const isSameAsExisting =
-        existingDay
-          ? existingDay.isPlanned === day.isPlanned &&
-            existingDay.plannedArrivalTime === day.plannedArrivalTime &&
-            existingDay.plannedDepartureTime === day.plannedDepartureTime
-          : !day.isPlanned &&
-            day.plannedArrivalTime === null &&
-            day.plannedDepartureTime === null;
+        !day.isPlanned &&
+        day.plannedArrivalTime === null &&
+        day.plannedDepartureTime === null;
       if (!isSameAsExisting) {
         throw new WeeklyScheduleError("PAST_DATE_NOT_EDITABLE");
       }
     });
 
     const timestamp = now.toISOString();
-
-    if (existing) {
-      return {
-        schedule: await this.weeklyScheduleRepository.update(
-          existing,
-          input,
-          timestamp,
-        ),
-        created: false,
-      };
-    }
 
     return {
       schedule: await this.weeklyScheduleRepository.create(
@@ -72,6 +74,7 @@ export class WeeklyScheduleService {
         timestamp,
       ),
       created: true,
+      idempotent: false,
     };
   }
 }

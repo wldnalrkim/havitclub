@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   addDays,
   createEmptyWeeklyScheduleInput,
@@ -52,11 +52,7 @@ export function WeeklyScheduleScreen({
   const isCurrentWeek = weekStartDate === currentWeekStart;
   const isNextWeek = weekStartDate === nextWeekStart;
   const todaySeoulDate = getTodaySeoulDate();
-
-  const isDirty = useMemo(() => {
-    if (!savedSchedule) return true;
-    return JSON.stringify(days) !== JSON.stringify(savedSchedule.days);
-  }, [days, savedSchedule]);
+  const isLocked = savedSchedule !== null;
 
   useEffect(() => {
     let cancelled = false;
@@ -132,7 +128,7 @@ export function WeeklyScheduleScreen({
 
     setSavedSchedule(result.data.schedule);
     setDays(result.data.schedule?.days ?? days);
-    setSuccess(result.data.created ? "이번 주 계획을 제출했어요." : "변경사항을 저장했어요.");
+    setSuccess("주간 계획이 확정되었습니다.");
     setIsSaving(false);
   }
 
@@ -186,7 +182,7 @@ export function WeeklyScheduleScreen({
                   <div className="flex rounded-xl bg-[#eef4f7] p-1">
                     <button
                       aria-pressed={day.isPlanned}
-                      disabled={isPastDay}
+                      disabled={isPastDay || isLocked}
                       className={`rounded-lg px-3 py-2 text-xs font-bold ${
                         day.isPlanned ? "bg-white text-[#2f6690] shadow-sm" : "text-[#718096]"
                       }`}
@@ -197,7 +193,7 @@ export function WeeklyScheduleScreen({
                     </button>
                     <button
                       aria-pressed={!day.isPlanned}
-                      disabled={isPastDay}
+                      disabled={isPastDay || isLocked}
                       className={`rounded-lg px-3 py-2 text-xs font-bold ${
                         !day.isPlanned ? "bg-white text-[#2f6690] shadow-sm" : "text-[#718096]"
                       }`}
@@ -222,7 +218,7 @@ export function WeeklyScheduleScreen({
                       <input
                         aria-label={`${WEEKDAY_LABELS[index]}요일 등원 예정시간`}
                         className="mt-2 w-full rounded-xl border border-[#d9e2e9] bg-[#fbfcfd] px-3 py-3 text-base text-[#243b53] outline-none focus:border-[#5d91b3] focus:ring-4 focus:ring-[#e7f0f8]"
-                        disabled={isPastDay}
+                        disabled={isPastDay || isLocked}
                         onChange={(event) =>
                           updateDay(index, { plannedArrivalTime: event.target.value || null })
                         }
@@ -235,7 +231,7 @@ export function WeeklyScheduleScreen({
                       <input
                         aria-label={`${WEEKDAY_LABELS[index]}요일 하원 예정시간`}
                         className="mt-2 w-full rounded-xl border border-[#d9e2e9] bg-[#fbfcfd] px-3 py-3 text-base text-[#243b53] outline-none focus:border-[#5d91b3] focus:ring-4 focus:ring-[#e7f0f8]"
-                        disabled={isPastDay}
+                        disabled={isPastDay || isLocked}
                         onChange={(event) =>
                           updateDay(index, { plannedDepartureTime: event.target.value || null })
                         }
@@ -253,14 +249,21 @@ export function WeeklyScheduleScreen({
           {error && <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm font-medium text-[#b45353]" role="alert">{error}</p>}
           {success && <p className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-medium text-[#24734d]" role="status">{success}</p>}
 
-          <button
-            className="w-full rounded-2xl bg-[#2f6690] px-4 py-4 text-sm font-bold text-white transition hover:bg-[#255576] disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={isSaving || !isDirty}
-            onClick={() => void handleSubmit()}
-            type="button"
-          >
-            {isSaving ? "저장 중..." : savedSchedule ? "변경사항 저장" : "주간 계획 제출"}
-          </button>
+          {savedSchedule ? (
+            <div className="rounded-2xl border border-[#d9e2e9] bg-[#eef4f7] px-4 py-4 text-sm leading-6 text-[#607080]" role="status">
+              <p className="font-bold text-[#334e68]">주간 계획이 확정되었습니다.</p>
+              <p className="mt-1">계획을 변경하려면 담당 코치에게 직접 요청해주세요.</p>
+            </div>
+          ) : (
+            <button
+              className="w-full rounded-2xl bg-[#2f6690] px-4 py-4 text-sm font-bold text-white transition hover:bg-[#255576] disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isSaving}
+              onClick={() => void handleSubmit()}
+              type="button"
+            >
+              {isSaving ? "저장 중..." : "주간 계획 제출"}
+            </button>
+          )}
         </>
       )}
     </section>

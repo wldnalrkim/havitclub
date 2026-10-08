@@ -275,42 +275,4 @@ export class NotionWeeklyScheduleRepository
     };
   }
 
-  async update(
-    existing: WeeklySchedule,
-    input: WeeklyScheduleInput,
-    updatedAt: string,
-  ) {
-    const page = await this.findPage(
-      existing.studentId,
-      existing.weekStartDate,
-    );
-    if (!page || typeof page.id !== "string") {
-      throw new NotionWeeklyScheduleRepositoryError();
-    }
-
-    const response = await this.request(
-      `/pages/${encodeURIComponent(page.id)}`,
-      {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          properties: this.buildProperties(
-            existing.studentId,
-            input,
-            existing.submittedAt,
-            updatedAt,
-          ),
-        }),
-      },
-    );
-    await response.body?.cancel();
-
-    return {
-      studentId: existing.studentId,
-      weekStartDate: input.weekStartDate,
-      days: input.days,
-      submittedAt: existing.submittedAt,
-      updatedAt,
-    };
-  }
 }
