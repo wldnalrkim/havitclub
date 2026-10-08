@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { DashboardScreen } from "@/features/dashboard/dashboard-screen";
 import { LoginScreen } from "@/features/auth/login-screen";
 import { CheckoutScreen } from "@/features/checkout/checkout-screen";
 import { PlanScreen } from "@/features/daily-plan/plan-screen";
 import { NextPlanScreen } from "@/features/recovery/next-plan-screen";
 import { TodayScreen } from "@/features/today/today-screen";
+import { WeeklyScheduleScreen } from "@/features/weekly-schedule/weekly-schedule-screen";
 import { Logo } from "@/components/ui";
 import {
   getCurrentStudent,
@@ -41,6 +42,11 @@ const navItems: { label: string; screen: Screen; icon: ReactNode }[] = [
     label: "계획",
     screen: "plan",
     icon: <svg {...iconProps}><path d="M9 6h11M9 12h11M9 18h11" /><path d="m3.5 6 1.2 1.2L7 5M3.5 12l1.2 1.2L7 11M3.5 18l1.2 1.2L7 17" /></svg>,
+  },
+  {
+    label: "주간",
+    screen: "weekly-schedule",
+    icon: <svg {...iconProps}><rect x="4" y="5" width="16" height="15" rx="2" /><path d="M8 3v4M16 3v4M4 10h16M8 14h.01M12 14h.01M16 14h.01M8 17h.01M12 17h.01" /></svg>,
   },
   {
     label: "체크아웃",
@@ -81,6 +87,13 @@ export function AppShell() {
     setScreen(nextScreen);
     window.scrollTo({ top: 0 });
   }
+
+  const handleSessionExpired = useCallback(() => {
+    setIsLoggedIn(false);
+    setStudentName("");
+    setScreen("today");
+    setState(null);
+  }, []);
 
   async function handleLogin(studentCode: string) {
     const result = await loginWithStudentCode(studentCode);
@@ -132,7 +145,9 @@ export function AppShell() {
           </button>
         </div>
       </header>
-      <MockDevToolbar currentDate={state.currentDate} onChanged={() => { refresh(); navigate("today"); }} />
+      {screen !== "weekly-schedule" && (
+        <MockDevToolbar currentDate={state.currentDate} onChanged={() => { refresh(); navigate("today"); }} />
+      )}
       <main className="mx-auto max-w-3xl px-5 pb-28 pt-6">
         {screen === "today" && (
           <TodayScreen
@@ -161,6 +176,9 @@ export function AppShell() {
             tasks={planTasks}
           />
         )}
+        {screen === "weekly-schedule" && (
+          <WeeklyScheduleScreen onSessionExpired={handleSessionExpired} />
+        )}
         {screen === "checkout" && (
           <CheckoutScreen
             key={state.currentDate}
@@ -185,7 +203,7 @@ export function AppShell() {
           {navItems.map((item) => (
             <button
               aria-current={screen === item.screen ? "page" : undefined}
-              className={`flex min-h-12 min-w-[4.5rem] flex-col items-center justify-center gap-1 rounded-2xl px-3 py-2 text-xs font-semibold transition ${
+              className={`flex min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-xs font-semibold transition ${
                 screen === item.screen ? "bg-[#e7f0f8] text-[#2f6690]" : "text-[#6b7b8c] hover:text-[#2f6690]"
               }`}
               key={item.screen}

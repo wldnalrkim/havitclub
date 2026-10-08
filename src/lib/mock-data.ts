@@ -1,4 +1,4 @@
-export type Screen = "today" | "plan" | "checkout" | "dashboard" | "next-plan";
+export type Screen = "today" | "plan" | "weekly-schedule" | "checkout" | "dashboard" | "next-plan";
 
 export type TaskStatus = "pending" | "completed" | "partial" | "incomplete";
 
