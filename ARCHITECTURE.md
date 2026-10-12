@@ -144,11 +144,11 @@ source
 ### DailyPlan
 
 ```text
-id, studentId, date, plannedScheduleId, dailyCommitmentCheckOutTime,
+id, studentId, date, plannedScheduleId, effectivePlannedCheckOutTime,
 status, createdAt, updatedAt
 ```
 
-DailyPlan은 학생이 당일 제출하는 Daily Commitment를 표현합니다. `dailyCommitmentCheckOutTime`은 필요할 때만 제출하는 당일 하원시간 수정값이며, 핵심 계획도 이 계획에 포함됩니다.
+DailyPlan은 학생이 당일 제출하는 Daily Commitment를 표현합니다. 예정 하원시간은 확정된 주간계획에서 읽으며 학생이 수정하는 필드로 저장하지 않습니다. 핵심 학습 계획은 이 계획에 포함됩니다.
 
 ### DailyTask
 
@@ -353,12 +353,12 @@ Notion Repository의 책임:
 
 학생은 날짜를 입력하지 않습니다. 서버가 `Asia/Seoul` 기준으로 오늘 날짜를 결정합니다.
 
-1. 학생이 예정 하원시간(필요한 경우)과 최대 3개 계획을 입력합니다.
+1. 학생이 최대 20개 학습 항목을 입력합니다. 예정 하원시간은 확정된 주간계획에서 자동으로 읽습니다.
 2. Client에서 사용성을 위한 1차 검사를 합니다.
-3. `POST /api/daily-plans`가 Zod로 서버 검증을 다시 합니다.
+3. `POST /api/daily-commitments`가 서버 검증을 다시 합니다.
 4. 서버가 운영 시간대 기준 오늘 날짜와 세션의 `studentId`를 결정합니다.
-5. 서비스가 오늘 날짜·계획 수·수정 가능 여부를 Domain 규칙으로 검사합니다.
-6. `DailyPlanRepository`가 저장합니다.
+5. 서비스가 오늘 날짜·학습 항목·버전·수정 가능 여부를 Domain 규칙으로 검사합니다.
+6. `DailyCommitmentRepository`가 저장하고, 변경 시 `DailyCommitmentRevisionRepository`가 변경 전·후 값을 추가 기록합니다.
 7. 서버가 학생 화면용 응답만 반환합니다.
 8. UI는 성공 상태를 표시하고 오늘 화면으로 이동합니다.
 
@@ -371,7 +371,7 @@ Notion Repository의 책임:
 | 개념 | 의미 | 초기 Source |
 | --- | --- | --- |
 | PlannedSchedule | 월간·사전 계획의 예정 등원·하원시간 | 기존 운영 데이터 |
-| DailyCommitment | 학생이 당일 제출하는 학습계획과 필요 시 당일 하원 예정시간 수정 | 학생 웹 |
+| DailyCommitment | 학생이 당일 제출하는 학습계획. 예정 하원시간은 확정 주간계획에서 읽기 전용으로 표시 | 학생 웹 |
 | ActualAttendance | 실제 등원·하원·외출·복귀 기록 | 기존 출결 자동화 |
 
 학생에게 PlannedSchedule의 예정 등원시간을 매일 다시 입력시키지 않습니다. Dashboard는 세 시간 개념을 구분해 예정 등원과 실제 등원, 예정 하원과 실제 하원, 계획 체류시간과 실제 체류시간을 비교합니다.
@@ -380,11 +380,11 @@ Notion Repository의 책임:
 
 당일 하원시간의 최종 기준은 UI가 아니라 Domain/Application Layer에서 계산합니다.
 
-1. 기본 기준은 해당 날짜의 `PlannedSchedule`입니다.
-2. 학생이 당일 하원시간을 수정하지 않았다면 `PlannedSchedule.plannedCheckOutTime`을 사용합니다.
-3. 학생이 `DailyCommitment`의 하원시간 수정값을 정상 제출했다면 그 값을 해당 날짜의 최종 기준으로 사용합니다.
-4. 원래 `PlannedSchedule` 값은 삭제하지 않습니다.
-5. 수정 전·후 값과 수정 시점은 변경 기록으로 남깁니다.
+1. 기본 기준은 해당 날짜의 확정된 주간계획입니다.
+2. 학생이 당일 계획에 하원시간을 보내더라도 서버는 요청을 거부합니다.
+3. 코치 승인 변경이 도입되면 승인된 값만 해당 날짜의 최종 기준으로 사용합니다.
+4. 원래 주간계획 값은 삭제하지 않습니다.
+5. 승인 변경 전·후 값과 변경 시점은 별도 코치 이력으로 남깁니다.
 
 이 계산 결과를 `effectivePlannedCheckOutTime`으로 표현할 수 있습니다.
 
@@ -429,6 +429,8 @@ Checkout 입력
   → Recovery 생성(없을 때만)
   → 결과 응답
 ```
+
+체크아웃 저장 후 `partial` 또는 `incomplete`인 항목은 `originalPlanId + originalTaskId`를 기준으로 Recovery Repository에 멱등 생성합니다. Recovery의 `pending/completed` 상태는 원래 Checkout 결과와 별개이며, 다음 계획에 이월된 항목은 학습 항목의 `recoveryId`로 원본을 추적합니다. Recovery 저장이 실패하면 체크아웃 성공으로 응답하지 않고 재시도 시 누락된 항목을 다시 조회합니다.
 
 Notion은 여러 작업을 하나의 transaction으로 보장하지 않으므로, Checkout 재요청에도 같은 `sourceTaskId`와 목적의 Recovery가 중복 생성되지 않게 합니다. Task가 미완료인데 Recovery가 없으면 재시도·복구 작업이 누락 Recovery를 생성할 수 있어야 합니다. API에는 요청 식별자 또는 동등한 멱등성 전략을 적용하고, 최종 상태를 재조회해 일관성을 확인합니다. 이 흐름은 UI에서 완료율을 계산하거나 Recovery를 임의로 생성하지 않도록 합니다.
 

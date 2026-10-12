@@ -21,7 +21,10 @@ export function CheckoutScreen({
   tasks,
 }: {
   onDone: () => void;
-  onSubmitted: (statuses: Record<string, TaskStatus>, reasons: Record<string, string>) => Recovery[];
+  onSubmitted: (
+    statuses: Record<string, TaskStatus>,
+    reasons: Record<string, string>,
+  ) => Promise<{ ok: true; recoveries: Recovery[] } | { ok: false; message: string }>;
   tasks: Task[];
 }) {
   const planTasks = tasks;
@@ -33,6 +36,7 @@ export function CheckoutScreen({
   const [createdRecoveries, setCreatedRecoveries] = useState<Recovery[]>([]);
   const [submitError, setSubmitError] = useState("");
   const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const isAlreadySubmitted = planTasks.length > 0 && planTasks.every((task) => task.status !== "pending");
   const isReadOnly = isAlreadySubmitted && !isEditing && !submitted;
 
@@ -46,7 +50,8 @@ export function CheckoutScreen({
     setReasons((current) => ({ ...current, [taskId]: reason }));
   }
 
-  function handleSubmit() {
+  async function handleSubmit() {
+    if (isSaving) return;
     const hasUnselectedTask = planTasks.some((task) => !statuses[task.id] || statuses[task.id] === "pending");
     const hasMissingReason = planTasks.some((task) => {
       const status = statuses[task.id];
@@ -63,7 +68,14 @@ export function CheckoutScreen({
     }
 
     setSubmitError("");
-    setCreatedRecoveries(onSubmitted(statuses, reasons));
+    setIsSaving(true);
+    const result = await onSubmitted(statuses, reasons);
+    setIsSaving(false);
+    if (!result.ok) {
+      setSubmitError(result.message);
+      return;
+    }
+    setCreatedRecoveries(result.recoveries);
     setSubmitted(true);
   }
 
@@ -196,11 +208,12 @@ export function CheckoutScreen({
           </button>
         ) : (
           <button
-            className="flex-1 rounded-2xl bg-[#2f6690] px-4 py-4 text-sm font-bold text-white transition hover:bg-[#255576]"
-            onClick={handleSubmit}
+            className="flex-1 rounded-2xl bg-[#2f6690] px-4 py-4 text-sm font-bold text-white transition hover:bg-[#255576] disabled:opacity-60"
+            disabled={isSaving}
+            onClick={() => void handleSubmit()}
             type="button"
           >
-            오늘 기록 저장하기
+            {isSaving ? "저장 중..." : "오늘 기록 저장하기"}
           </button>
         )}
       </div>

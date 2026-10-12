@@ -107,35 +107,43 @@ Phase 2 시작 전에 인증 저장소를 결정합니다. 학생 운영 데이�
 
 주간 등하원 계획은 학생이 최초 제출한 뒤 확정 상태로 잠깁니다. 학생용 API는 신규 제출과 동일 내용의 멱등 재전송만 허용하고, 확정 계획의 변경은 코치 승인 기능이 도입되기 전까지 거부합니다. 승인 변경 시에는 최초값과 변경 이력을 별도 보존합니다.
 
-## Phase 4 — Daily Plan
+## Phase 4 — Daily Commitment
 
-상태: 대기
+상태: 구현 중
 
-- 오늘 계획 조회
-- 계획 생성
-- 당일 계획 수정 정책 구현
+- 오늘 학습 계획 조회
+- 최초 계획 제출
+- 제출 후 학습 항목 추가·수정·삭제
+- 최초 계획과 모든 변경 이력 보존
 - 서버가 `Asia/Seoul` 기준 오늘 날짜 결정
-- Daily Commitment의 핵심 계획과 필요 시 예정 하원시간 수정 검증
+- 확정된 주간계획의 예정 하원시간 읽기 전용 표시
+- 학생 요청의 예정 하원시간 변경 거부
 - PlannedSchedule의 예정 등원시간을 학생에게 중복 입력시키지 않음
-- PlannedSchedule과 DailyCommitment를 바탕으로 `effectivePlannedCheckOutTime` 계산
-- 계획 변경 전·후 값을 변경 기록으로 보존
+- 계획 변경 전·후 값을 append-only 변경 기록으로 보존
+- Notion 당일계획·변경이력 데이터베이스 저장
 - Notion 저장 연결
+- 오늘·계획·체크아웃·내 현황(주간·월간 캘린더) 화면이 같은 실제 당일계획 데이터를 사용
+- 항목별 체크아웃 결과 저장, 체크아웃 후 학습 항목 수정 잠금
 
 완료 기준:
 
 - 학생 본인의 오늘 계획만 조회·수정
 - 서버에서 입력을 다시 검증
 - 계획이 없을 때 명확한 CTA 표시
-- PlannedSchedule과 DailyCommitment의 우선순위가 Domain/Application Layer에서 일관되게 적용됨
+- 확정 주간계획의 하원시간을 학생이 변경할 수 없음
+- PlannedSchedule과 DailyCommitment의 시간 기준이 Domain/Application Layer에서 일관되게 적용됨
 
 ## Phase 5 — Checkout / Recovery
 
-상태: 대기
+상태: 구현 중
 
-- 계획별 완료·일부 완료·미완료 입력
-- 미완료 사유 검증
+- 계획별 완료·일부 완료·미완료 입력과 사유 검증(Phase 4에서 당일계획 레코드에 기본 저장 구현)
 - 완료율 계산
-- Recovery 생성과 조회
+- Recovery 생성과 조회(현재 실제 데이터 화면에서는 Mock Recovery를 표시하지 않음)
+- 체크아웃 `partial`·`incomplete` 결과의 Recovery 자동 생성
+- Recovery 전용 Notion Repository 및 조회 API
+- 다음 당일 계획으로 Recovery 이월 및 `recoveryId` 추적
+- 이월 학습 항목이 `completed`인 경우 Recovery 완료 처리
 - Recovery 완료 처리
 
 완료 기준:

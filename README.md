@@ -16,6 +16,7 @@ Havit Club은 중·고등학생이 다음 학습 루프를 경험하도록 돕�
 - **Phase 1 — UI Prototype: 완료**
 - **Phase 2 — Identity + Minimal Data Layer: 완료**
 - **Phase 3 — Weekly Schedule: 구현 완료**
+- **Phase 4 — Daily Commitment: 구현 중**
 
 Phase 1의 화면과 Mock 데이터는 유지하고, Phase 2에서 실제 학생 식별·서버 세션·Notion 학생명부 연동을 추가했습니다. Phase 3에서는 학생별 주간 등하원 계획을 별도 Notion 데이터베이스에 저장합니다.
 
@@ -48,8 +49,9 @@ Phase 2 인증은 코치가 오프라인에서 전달하는 일회성 초기 코
 4. UI, 비즈니스 규칙, Repository, 외부 API 연동을 분리합니다.
 5. 학생은 서버 세션의 `studentId`에 해당하는 데이터만 조회하고 제출합니다.
 6. 제출된 주간 계획은 확정되며 학생이 직접 수정할 수 없습니다. 변경은 코치 승인 절차로 분리합니다.
-6. 초기 MVP에는 AI 기능을 넣지 않습니다.
-7. 기능은 Phase 단위로 구현하고 검증합니다.
+7. 확정된 주간계획의 예정 하원시간은 학생이 수정할 수 없고, 당일 학습 항목 변경은 최초값과 이력을 보존합니다.
+8. 초기 MVP에는 AI 기능을 넣지 않습니다.
+9. 기능은 Phase 단위로 구현하고 검증합니다.
 
 ## 문서
 
@@ -65,6 +67,7 @@ Phase 2 인증은 코치가 오프라인에서 전달하는 일회성 초기 코
 - 체크아웃
 - Recovery Plan
 - 주간 내 현황
+- 당일 학습 계획과 변경 이력
 
 ## 실행 방법
 
@@ -83,7 +86,11 @@ Phase 2 인증은 코치가 오프라인에서 전달하는 일회성 초기 코
 
 ```text
 NOTION_API_KEY
+NOTION_TOKEN
 SESSION_SECRET
+NOTION_RECOVERY_DATABASE_ID
 ```
 
 학생 식별과 서버 세션 발급은 서버에서 처리합니다. Supabase를 도입하는 시점에 Supabase 관련 환경변수를 추가합니다.
+
+Recovery는 체크아웃의 `partial`·`incomplete` 항목만 별도 DB에 append/create 방식으로 기록합니다. 원래 계획과 체크아웃 결과는 수정하지 않으며, 이월된 학습 항목은 `recoveryId`로 원본 Recovery와 연결합니다.

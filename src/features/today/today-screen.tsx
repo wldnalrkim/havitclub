@@ -9,6 +9,7 @@ const recoveryCardStyles = {
 };
 
 function formatTime(time: string) {
+  if (!time) return "—";
   const [hour = 0, minute = 0] = time.split(":").map(Number);
   return `${hour >= 12 ? "오후" : "오전"} ${hour % 12 || 12}:${String(minute).padStart(2, "0")}`;
 }
@@ -56,7 +57,7 @@ export function TodayScreen({
           title: "오늘 계획을 세워볼까요?",
           description: carryOverCount > 0
             ? `이어서 할 계획 ${carryOverCount}개가 미리 채워져 있어요.`
-            : "오늘 꼭 해낼 계획을 3개 이상 정해보세요.",
+            : "오늘 공부할 내용을 과목별로 정해보세요.",
           action: "오늘 계획 세우기",
           target: "plan" as const,
         };
@@ -98,8 +99,10 @@ export function TodayScreen({
       <section className="grid grid-cols-2 gap-3">
         <div className="rounded-2xl bg-white p-4">
           <p className="text-xs text-[#6b7b8c]">예정 하원</p>
-          <p className="mt-2 text-lg font-bold text-[#243b53]">{hasPlan ? formatTime(plannedCheckOutTime) : "—"}</p>
-          <StatusPill tone={hasPlan ? "blue" : "slate"}>{hasPlan ? "오늘 약속" : "계획 후 확정"}</StatusPill>
+          <p className="mt-2 text-lg font-bold text-[#243b53]">{formatTime(plannedCheckOutTime)}</p>
+          <StatusPill tone={plannedCheckOutTime ? "blue" : "slate"}>
+            {plannedCheckOutTime ? "주간 계획 기준" : "주간 계획 미확정"}
+          </StatusPill>
         </div>
         <div className="rounded-2xl bg-white p-4">
           <p className="text-xs text-[#6b7b8c]">출결</p>

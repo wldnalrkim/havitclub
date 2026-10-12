@@ -4,22 +4,29 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { DashboardScreen } from "@/features/dashboard/dashboard-screen";
 import { LoginScreen } from "@/features/auth/login-screen";
 import { CheckoutScreen } from "@/features/checkout/checkout-screen";
-import { PlanScreen } from "@/features/daily-plan/plan-screen";
-import { NextPlanScreen } from "@/features/recovery/next-plan-screen";
+import { DailyCommitmentScreen } from "@/features/daily-commitment/daily-commitment-screen";
 import { TodayScreen } from "@/features/today/today-screen";
 import { WeeklyScheduleScreen } from "@/features/weekly-schedule/weekly-schedule-screen";
-import { Logo } from "@/components/ui";
+import {
+  getDailyCommitment,
+  getDailyCommitmentHistory,
+  getRecoveries,
+  saveDailyCheckout,
+  type DailyCommitmentView,
+} from "@/features/daily-commitment/daily-commitment-api";
+import { toDailyRecords, toTasks } from "@/features/daily-commitment/daily-commitment-records";
+import { getTodaySeoulDate, type CheckoutTaskResult } from "@/domain/daily-commitment/daily-commitment";
+import type { Recovery } from "@/domain/recovery/recovery";
+import { LoadingState, Logo } from "@/components/ui";
+import { DevDateToolbar } from "@/components/dev-date-toolbar";
 import {
   getCurrentStudent,
   loginWithStudentCode,
   logoutCurrentStudent,
 } from "@/features/auth/auth-api";
-import { studentService } from "@/services/student-service";
-import { mockPlan, type Screen, type TaskStatus } from "@/lib/mock-data";
-import { createCarryOverTasks, getCarryOverRecoveries, isCheckedOut } from "@/lib/progress";
-import { MockDevToolbar } from "@/mock/mock-dev-toolbar";
-
-type StudentState = ReturnType<typeof studentService.getState>;
+import type { DailyRecord, Screen, TaskStatus } from "@/lib/mock-data";
+import { getMonthCalendar, getWeekDates, isCheckedOut } from "@/lib/progress";
+import { getClientOperationalDate } from "@/lib/dev-date";
 
 const iconProps = {
   fill: "none",
@@ -60,40 +67,145 @@ const navItems: { label: string; screen: Screen; icon: ReactNode }[] = [
   },
 ];
 
+type DailyState =
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | { status: "ready"; commitment: DailyCommitmentView | null; plannedCheckOutTime: string };
+
+type RecoveryState =
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | { status: "ready"; recoveries: Recovery[] };
+
+type HistoryState =
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | { status: "ready"; records: DailyRecord[] };
+
+function getHistoryRange(date: string) {
+  const weekDates = getWeekDates(date);
+  const monthDates = getMonthCalendar(date).dates;
+  const from = weekDates[0] < monthDates[0] ? weekDates[0] : monthDates[0];
+  const lastWeekDate = weekDates[weekDates.length - 1];
+  const lastMonthDate = monthDates[monthDates.length - 1];
+  return { from, to: lastWeekDate > lastMonthDate ? lastWeekDate : lastMonthDate };
+}
+
+function getErrorMessage(data: unknown, fallback: string) {
+  if (typeof data === "object" && data !== null && "message" in data && typeof data.message === "string") {
+    return data.message;
+  }
+  return fallback;
+}
+
+function LoadError({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="space-y-3 rounded-3xl bg-white p-5" role="alert">
+      <p className="text-sm font-medium text-[#b45353]">{message}</p>
+      <button className="rounded-2xl border border-[#b8ccda] px-4 py-3 text-sm font-bold text-[#2f6690]" onClick={onRetry} type="button">
+        다시 불러오기
+      </button>
+    </div>
+  );
+}
+
 export function AppShell() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
   const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
   const [studentName, setStudentName] = useState("");
   const [screen, setScreen] = useState<Screen>("today");
-  const [state, setState] = useState<StudentState | null>(null);
+  const [today, setToday] = useState(() => getTodaySeoulDate());
+  const [daily, setDaily] = useState<DailyState>({ status: "loading" });
+  const [history, setHistory] = useState<HistoryState>({ status: "loading" });
+  const [recoveries, setRecoveries] = useState<RecoveryState>({ status: "loading" });
+
+  const handleSessionExpired = useCallback(() => {
+    setIsLoggedIn(false);
+    setStudentName("");
+    setScreen("today");
+    setDaily({ status: "loading" });
+    setHistory({ status: "loading" });
+  }, []);
+
+  const refreshDaily = useCallback(async () => {
+    const date = getClientOperationalDate() ?? getTodaySeoulDate();
+    setToday(date);
+    const result = await getDailyCommitment(date);
+    if (result.response?.status === 401) {
+      handleSessionExpired();
+      return;
+    }
+    if (!result.response?.ok || !result.data.ok) {
+      setDaily({ status: "error", message: getErrorMessage(result.data, "오늘 계획을 불러올 수 없습니다.") });
+      return;
+    }
+    setDaily({
+      status: "ready",
+      commitment: result.data.commitment,
+      plannedCheckOutTime: result.data.plannedCheckOut.time ?? "",
+    });
+  }, [handleSessionExpired]);
+
+  const refreshHistory = useCallback(async () => {
+    const date = getClientOperationalDate() ?? getTodaySeoulDate();
+    setToday(date);
+    setHistory({ status: "loading" });
+    const { from, to } = getHistoryRange(date);
+    const result = await getDailyCommitmentHistory(from, to);
+    if (result.response?.status === 401) {
+      handleSessionExpired();
+      return;
+    }
+    if (!result.response?.ok || !result.data.ok) {
+      setHistory({ status: "error", message: getErrorMessage(result.data, "학습 기록을 불러올 수 없습니다.") });
+      return;
+    }
+    setHistory({ status: "ready", records: toDailyRecords(result.data.commitments) });
+  }, [handleSessionExpired]);
+
+  const refreshRecoveries = useCallback(async () => {
+    const result = await getRecoveries();
+    if (result.response?.status === 401) {
+      handleSessionExpired();
+      return;
+    }
+    if (!result.response?.ok || !result.data.ok) {
+      setRecoveries({ status: "error", message: getErrorMessage(result.data, "Recovery를 불러올 수 없습니다.") });
+      return;
+    }
+    setRecoveries({ status: "ready", recoveries: result.data.recoveries });
+  }, [handleSessionExpired]);
 
   useEffect(() => {
-    getCurrentStudent().then((student) => {
+    getCurrentStudent().then(async (student) => {
+      setToday(getClientOperationalDate() ?? getTodaySeoulDate());
       if (student) {
         setStudentName(student.displayName);
-        setState(studentService.getState());
         setIsLoggedIn(true);
+        await Promise.all([refreshDaily(), refreshRecoveries()]);
       }
       setIsHydrated(true);
     });
-  }, []);
+  }, [refreshDaily, refreshRecoveries]);
 
-  function refresh() {
-    setState(studentService.getState());
-  }
+  useEffect(() => {
+    if (isLoggedIn && screen === "dashboard") {
+      void refreshHistory();
+      void refreshRecoveries();
+    }
+  }, [isLoggedIn, screen, refreshHistory, refreshRecoveries]);
 
   function navigate(nextScreen: Screen) {
     setScreen(nextScreen);
     window.scrollTo({ top: 0 });
   }
 
-  const handleSessionExpired = useCallback(() => {
-    setIsLoggedIn(false);
-    setStudentName("");
-    setScreen("today");
-    setState(null);
-  }, []);
+  async function handleDevDateChanged() {
+    const date = getClientOperationalDate() ?? getTodaySeoulDate();
+    setToday(date);
+    await Promise.all([refreshDaily(), refreshHistory(), refreshRecoveries()]);
+  }
 
   async function handleLogin(studentCode: string) {
     const result = await loginWithStudentCode(studentCode);
@@ -102,35 +214,56 @@ export function AppShell() {
     }
 
     setStudentName(result.student.displayName);
-    setState(studentService.getState());
     setIsLoggedIn(true);
+    await Promise.all([refreshDaily(), refreshRecoveries()]);
     return { ok: true };
   }
 
   async function handleLogout() {
     await logoutCurrentStudent();
     setIsLogoutConfirmOpen(false);
-    setIsLoggedIn(false);
-    setStudentName("");
-    setScreen("today");
-    setState(null);
+    handleSessionExpired();
+  }
+
+  async function handleCheckout(statuses: Record<string, TaskStatus>, reasons: Record<string, string>) {
+    if (daily.status !== "ready" || !daily.commitment) {
+      return { ok: false as const, message: "오늘 계획을 먼저 제출해주세요." };
+    }
+    const results: CheckoutTaskResult[] = daily.commitment.tasks.map((task) => {
+      const status = statuses[task.id] as CheckoutTaskResult["status"];
+      return { taskId: task.id, status, reason: status === "completed" ? null : reasons[task.id] ?? "" };
+    });
+    const result = await saveDailyCheckout(daily.commitment.date, results);
+    if (result.response?.status === 401) {
+      handleSessionExpired();
+      return { ok: false as const, message: "세션이 만료되었습니다. 다시 로그인해주세요." };
+    }
+    if (!result.response?.ok || !result.data.ok) {
+      return { ok: false as const, message: getErrorMessage(result.data, "체크아웃을 저장할 수 없습니다.") };
+    }
+    setDaily({ ...daily, commitment: result.data.commitment });
+    await refreshRecoveries();
+    return { ok: true as const, recoveries: [] };
   }
 
   if (!isHydrated) {
     return <div className="grid min-h-screen place-items-center bg-[#f4f7f8] text-sm text-[#718096]">불러오는 중...</div>;
   }
 
-  if (!isLoggedIn || !state) {
+  if (!isLoggedIn) {
     return <LoginScreen onLogin={handleLogin} />;
   }
 
-  const planTasks = state.todayPlan?.tasks ?? [];
-  const plannedCheckOutTime = state.todayPlan?.plannedCheckOutTime ?? mockPlan.plannedCheckOutTime;
-  const checkedOut = isCheckedOut(planTasks);
-  const todayRecoveries = state.recoveries.filter(
-    (recovery) => recovery.sourceDate === state.currentDate && recovery.status === "open",
-  );
-  const carryOverCount = getCarryOverRecoveries(state.recoveries, state.currentDate).length;
+  const todayTasks = daily.status === "ready" ? toTasks(daily.commitment) : [];
+  const plannedCheckOutTime = daily.status === "ready" ? daily.plannedCheckOutTime : "";
+
+  function renderDailyScreen(content: ReactNode) {
+    if (daily.status === "loading") return <LoadingState />;
+    if (daily.status === "error") {
+      return <LoadError message={daily.message} onRetry={() => void refreshDaily()} />;
+    }
+    return content;
+  }
 
   return (
     <div className="min-h-screen bg-[#f4f7f8]">
@@ -145,57 +278,51 @@ export function AppShell() {
           </button>
         </div>
       </header>
-      {screen !== "weekly-schedule" && (
-        <MockDevToolbar currentDate={state.currentDate} onChanged={() => { refresh(); navigate("today"); }} />
-      )}
       <main className="mx-auto max-w-3xl px-5 pb-28 pt-6">
-        {screen === "today" && (
+        {process.env.NODE_ENV !== "production" && (
+          <DevDateToolbar currentDate={today} onChanged={() => void handleDevDateChanged()} />
+        )}
+        {screen === "today" && renderDailyScreen(
           <TodayScreen
-            carryOverCount={carryOverCount}
-            currentDate={state.currentDate}
-            isCheckedOut={checkedOut}
+            carryOverCount={0}
+            currentDate={today}
+            isCheckedOut={isCheckedOut(todayTasks)}
             onNavigate={navigate}
             plannedCheckOutTime={plannedCheckOutTime}
-            recoveries={todayRecoveries}
+            recoveries={[]}
             studentName={studentName}
-            tasks={planTasks}
-          />
+            tasks={todayTasks}
+          />,
         )}
         {screen === "plan" && (
-          <PlanScreen
-            carryOverTasks={createCarryOverTasks(state.recoveries, state.currentDate)}
-            isInitialPlan={planTasks.length === 0}
-            isLocked={checkedOut}
-            key={state.currentDate}
-            onCancel={() => navigate("today")}
-            onSave={(tasks, leaveTime) => {
-              setState(studentService.saveTodayPlan(leaveTime, tasks));
-              navigate("today");
-            }}
-            plannedCheckOutTime={plannedCheckOutTime}
-            tasks={planTasks}
+          <DailyCommitmentScreen
+            key={today}
+            onSessionExpired={handleSessionExpired}
+            onSaved={() => void refreshDaily()}
+            studentName={studentName}
           />
         )}
         {screen === "weekly-schedule" && (
           <WeeklyScheduleScreen onSessionExpired={handleSessionExpired} />
         )}
-        {screen === "checkout" && (
+        {screen === "checkout" && renderDailyScreen(
           <CheckoutScreen
-            key={state.currentDate}
+            key={today}
             onDone={() => navigate("today")}
-            onSubmitted={(statuses: Record<string, TaskStatus>, reasons: Record<string, string>) => {
-              const nextState = studentService.submitCheckout(planTasks, statuses, reasons);
-              setState(nextState);
-              return nextState.recoveries.filter(
-                (recovery) => recovery.sourceDate === nextState.currentDate && recovery.status === "open",
-              );
-            }}
-            tasks={planTasks}
-          />
+            onSubmitted={handleCheckout}
+            tasks={todayTasks}
+          />,
         )}
-        {screen === "dashboard" && <DashboardScreen {...studentService.getDashboardData()} />}
-        {screen === "next-plan" && todayRecoveries.length > 0 && (
-          <NextPlanScreen onBack={() => navigate("today")} recoveries={todayRecoveries} />
+        {screen === "dashboard" && (
+          history.status === "loading" ? <LoadingState /> :
+          history.status === "error" ? <LoadError message={history.message} onRetry={() => void refreshHistory()} /> :
+          <DashboardScreen
+            currentDate={today}
+            onRetryRecoveries={() => void refreshRecoveries()}
+            records={history.records}
+            recoveries={recoveries.status === "ready" ? recoveries.recoveries : []}
+            recoveryStatus={recoveries.status === "error" ? { error: recoveries.message } : recoveries.status}
+          />
         )}
       </main>
       <nav className="fixed inset-x-0 bottom-0 z-10 border-t border-[#e5ebef] bg-white/95 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur">

@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { formatDateLabel, type DailyRecord, type Recovery } from "@/lib/mock-data";
+import { formatDateLabel, type DailyRecord } from "@/lib/mock-data";
+import type { Recovery } from "@/domain/recovery/recovery";
 import { averageRate, getMonthCalendar, getWeekDates, summarizeRecords, type DaySummary } from "@/lib/progress";
 import { CarryOverBadge, StatusPill, SubjectTag, TaskStatusBadge } from "@/components/ui";
 
@@ -42,12 +43,16 @@ function getWeekFlow(rate: number | null) {
 
 export function DashboardScreen({
   currentDate,
+  onRetryRecoveries,
   records,
   recoveries,
+  recoveryStatus,
 }: {
   currentDate: string;
+  onRetryRecoveries: () => void;
   records: DailyRecord[];
   recoveries: Recovery[];
+  recoveryStatus: "loading" | "ready" | { error: string };
 }) {
   const [selectedDate, setSelectedDate] = useState(currentDate);
   const summaries = summarizeRecords(records);
@@ -57,8 +62,8 @@ export function DashboardScreen({
   const weekSummaries = weekDates.map((date) => summaries.get(date)).filter((summary): summary is DaySummary => Boolean(summary));
   const weekRate = averageRate(weekSummaries);
   const weekFlow = getWeekFlow(weekRate);
-  const openRecoveries = recoveries.filter((recovery) => recovery.status === "open");
-  const resolvedRecoveries = recoveries.filter((recovery) => recovery.status === "completed");
+  const openRecoveries = recoveries.filter((recovery) => recovery.recoveryStatus === "pending");
+  const resolvedRecoveries = recoveries.filter((recovery) => recovery.recoveryStatus === "completed");
 
   const stats = [
     { label: "계획 제출", value: `${weekSummaries.length}일`, note: "이번 주" },
@@ -222,17 +227,48 @@ export function DashboardScreen({
 
       <section className="rounded-3xl bg-white p-5">
         <div className="flex items-center justify-between">
-          <h2 className="font-bold text-[#334e68]">Recovery</h2>
-          <StatusPill tone={openRecoveries.length > 0 ? "amber" : "slate"}>
-            {openRecoveries.length > 0 ? `이어서 할 일 ${openRecoveries.length}개` : "남은 일 없음"}
-          </StatusPill>
+          <h2 className="font-bold text-[#334e68]">
+            Recovery{recoveryStatus === "ready" && openRecoveries.length > 0 ? ` — 미완료 학습 ${openRecoveries.length}개` : ""}
+          </h2>
+          {recoveryStatus === "ready" && (
+            <StatusPill tone={openRecoveries.length > 0 ? "amber" : "slate"}>
+              {openRecoveries.length > 0 ? `이어서 할 일 ${openRecoveries.length}개` : "남은 일 없음"}
+            </StatusPill>
+          )}
         </div>
-        <p className="mt-3 text-sm leading-6 text-[#718096]">
-          {openRecoveries.length > 0
-            ? `마치지 못한 계획 ${openRecoveries.length}개가 다음 계획을 기다리고 있어요.`
-            : "지금은 이어서 할 계획이 없어요."}
-          {resolvedRecoveries.length > 0 && ` 지금까지 ${resolvedRecoveries.length}개를 이어서 해냈어요.`}
-        </p>
+        {recoveryStatus === "loading" ? (
+          <p className="mt-3 text-sm text-[#718096]">Recovery를 불러오는 중...</p>
+        ) : typeof recoveryStatus === "object" ? (
+          <div className="mt-3 space-y-3" role="alert">
+            <p className="text-sm font-medium text-[#b45353]">{recoveryStatus.error}</p>
+            <button className="rounded-2xl border border-[#b8ccda] px-4 py-2.5 text-sm font-bold text-[#2f6690]" onClick={onRetryRecoveries} type="button">
+              다시 불러오기
+            </button>
+          </div>
+        ) : openRecoveries.length === 0 ? (
+          <p className="mt-3 text-sm leading-6 text-[#718096]">
+            미완료된 학습 계획이 없습니다.
+            {resolvedRecoveries.length > 0 && ` 지금까지 ${resolvedRecoveries.length}개를 이어서 해냈어요.`}
+          </p>
+        ) : (
+          <div className="mt-4 space-y-2">
+            {openRecoveries.map((recovery, index) => (
+              <div className="rounded-2xl bg-[#fffaf0] p-3" key={recovery.id}>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-[#a4772b]">{index + 1}</span>
+                  <SubjectTag subject={recovery.subject} />
+                  <p className="min-w-0 flex-1 truncate text-sm font-semibold text-[#334e68]">{recovery.content}</p>
+                  <TaskStatusBadge status={recovery.originalCompletionStatus} />
+                </div>
+                <p className="mt-1.5 text-xs text-[#8a6d3b]">
+                  원래 계획: {formatDateLabel(recovery.originalDate)}
+                  {recovery.incompleteReason ? ` · ${recovery.incompleteReason}` : ""}
+                  {recovery.carriedDate ? ` · ${formatDateLabel(recovery.carriedDate)} 계획에 이어서 추가됨` : ""}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
     </div>
   );
