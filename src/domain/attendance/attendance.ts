@@ -44,7 +44,10 @@ export type AttendanceSummary = {
   date: string;
   status: AttendanceStatus;
   quality: AttendanceDataQuality;
+  firstArrivalTime: string | null;
+  finalDepartureTime: string | null;
   confirmedDurationMinutes: number | null;
+  awayDurationMinutes: number | null;
   ongoingDurationMinutes: number | null;
   intervals: AttendanceInterval[];
 };
@@ -158,7 +161,10 @@ export function summarizeAttendance(
       date,
       status: "not_arrived",
       quality: "normal",
+      firstArrivalTime: null,
+      finalDepartureTime: null,
       confirmedDurationMinutes: 0,
+      awayDurationMinutes: 0,
       ongoingDurationMinutes: null,
       intervals: [],
     };
@@ -169,7 +175,10 @@ export function summarizeAttendance(
       date,
       status: "needs_review",
       quality: "date_uninterpretable",
+      firstArrivalTime: null,
+      finalDepartureTime: null,
       confirmedDurationMinutes: null,
+      awayDurationMinutes: null,
       ongoingDurationMinutes: null,
       intervals: [],
     };
@@ -180,7 +189,10 @@ export function summarizeAttendance(
       date,
       status: "needs_review",
       quality: "missing_time",
+      firstArrivalTime: null,
+      finalDepartureTime: null,
       confirmedDurationMinutes: null,
+      awayDurationMinutes: null,
       ongoingDurationMinutes: null,
       intervals: [],
     };
@@ -202,7 +214,10 @@ export function summarizeAttendance(
       date,
       status: "needs_review",
       quality: "order_conflict",
+      firstArrivalTime: null,
+      finalDepartureTime: null,
       confirmedDurationMinutes: null,
+      awayDurationMinutes: null,
       ongoingDurationMinutes: null,
       intervals: [],
     };
@@ -211,6 +226,10 @@ export function summarizeAttendance(
   let state: "before" | "inside" | "away" | "ended" = "before";
   let start: string | null = null;
   let hasVisit = false;
+  let firstArrivalTime: string | null = null;
+  let finalDepartureTime: string | null = null;
+  let awayStart: string | null = null;
+  let awayDurationMinutes = 0;
   const intervals: AttendanceInterval[] = [];
   let conflict = false;
 
@@ -221,6 +240,7 @@ export function summarizeAttendance(
         state = "inside";
         start = time;
         hasVisit = true;
+        firstArrivalTime ??= time;
       } else {
         conflict = true;
       }
@@ -233,12 +253,14 @@ export function summarizeAttendance(
         if (end === null) conflict = true;
         else intervals.push({ start: start!, end: time, minutes: end });
         start = null;
+        awayStart = time;
         state = "away";
       } else if (event.event === "하원") {
         const end = duration(start!, time);
         if (end === null) conflict = true;
         else intervals.push({ start: start!, end: time, minutes: end });
         start = null;
+        finalDepartureTime = time;
         state = "ended";
       } else {
         conflict = true;
@@ -247,9 +269,18 @@ export function summarizeAttendance(
     }
 
     if (event.event === "복귀") {
+      const awayEnd = duration(awayStart!, time);
+      if (awayEnd === null) conflict = true;
+      else awayDurationMinutes += awayEnd;
+      awayStart = null;
       state = "inside";
       start = time;
     } else if (event.event === "하원") {
+      const awayEnd = duration(awayStart!, time);
+      if (awayEnd === null) conflict = true;
+      else awayDurationMinutes += awayEnd;
+      awayStart = null;
+      finalDepartureTime = time;
       state = "ended";
     } else {
       conflict = true;
@@ -261,7 +292,10 @@ export function summarizeAttendance(
       date,
       status: "needs_review",
       quality: "order_conflict",
+      firstArrivalTime: null,
+      finalDepartureTime: null,
       confirmedDurationMinutes: null,
+      awayDurationMinutes: null,
       ongoingDurationMinutes: null,
       intervals: [],
     };
@@ -276,7 +310,10 @@ export function summarizeAttendance(
       date,
       status: "checked_out",
       quality: "normal",
+      firstArrivalTime,
+      finalDepartureTime,
       confirmedDurationMinutes,
+      awayDurationMinutes,
       ongoingDurationMinutes: null,
       intervals,
     };
@@ -294,7 +331,10 @@ export function summarizeAttendance(
     date,
     status,
     quality,
+    firstArrivalTime,
+    finalDepartureTime,
     confirmedDurationMinutes,
+    awayDurationMinutes,
     ongoingDurationMinutes,
     intervals,
   };

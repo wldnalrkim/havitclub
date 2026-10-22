@@ -25,8 +25,13 @@ import {
   logoutCurrentStudent,
 } from "@/features/auth/auth-api";
 import type { DailyRecord, Screen, TaskStatus } from "@/lib/mock-data";
-import { getMonthCalendar, getWeekDates, isCheckedOut } from "@/lib/progress";
+import { addDays, getMonthCalendar, getWeekDates, isCheckedOut } from "@/lib/progress";
 import { getClientOperationalDate } from "@/lib/dev-date";
+import {
+  getAttendanceRange,
+  type AttendanceEventView,
+} from "@/features/attendance/attendance-api";
+import type { AttendanceSummary } from "@/domain/attendance/attendance";
 
 const iconProps = {
   fill: "none",
@@ -82,6 +87,11 @@ type HistoryState =
   | { status: "error"; message: string }
   | { status: "ready"; records: DailyRecord[] };
 
+type AttendanceState =
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | { status: "ready"; events: AttendanceEventView[]; summaries: AttendanceSummary[] };
+
 function getHistoryRange(date: string) {
   const weekDates = getWeekDates(date);
   const monthDates = getMonthCalendar(date).dates;
@@ -96,6 +106,17 @@ function getErrorMessage(data: unknown, fallback: string) {
     return data.message;
   }
   return fallback;
+}
+
+function splitDateRange(from: string, to: string) {
+  const ranges: { from: string; to: string }[] = [];
+  let start = from;
+  while (start <= to) {
+    const end = addDays(start, 30) < to ? addDays(start, 30) : to;
+    ranges.push({ from: start, to: end });
+    start = addDays(end, 1);
+  }
+  return ranges;
 }
 
 function LoadError({ message, onRetry }: { message: string; onRetry: () => void }) {
@@ -118,6 +139,7 @@ export function AppShell() {
   const [today, setToday] = useState(() => getTodaySeoulDate());
   const [daily, setDaily] = useState<DailyState>({ status: "loading" });
   const [history, setHistory] = useState<HistoryState>({ status: "loading" });
+  const [attendance, setAttendance] = useState<AttendanceState>({ status: "loading" });
   const [recoveries, setRecoveries] = useState<RecoveryState>({ status: "loading" });
 
   const handleSessionExpired = useCallback(() => {
@@ -126,6 +148,7 @@ export function AppShell() {
     setScreen("today");
     setDaily({ status: "loading" });
     setHistory({ status: "loading" });
+    setAttendance({ status: "loading" });
   }, []);
 
   const refreshDaily = useCallback(async () => {
@@ -177,6 +200,47 @@ export function AppShell() {
     setRecoveries({ status: "ready", recoveries: result.data.recoveries });
   }, [handleSessionExpired]);
 
+  const refreshAttendance = useCallback(async () => {
+    const date = getClientOperationalDate() ?? getTodaySeoulDate();
+    setToday(date);
+    setAttendance({ status: "loading" });
+    const { from, to } = getHistoryRange(date);
+    const results = await Promise.all(
+      splitDateRange(from, to).map((range) =>
+        getAttendanceRange(range.from, range.to),
+      ),
+    );
+    const failed = results.find(
+      (result) =>
+        result.response?.status === 401 ||
+        !result.response?.ok ||
+        !result.data.ok,
+    );
+    if (failed?.response?.status === 401) {
+      handleSessionExpired();
+      return;
+    }
+    if (failed) {
+      setAttendance({
+        status: "error",
+        message: getErrorMessage(
+          failed.data,
+          "출결 정보를 불러올 수 없습니다.",
+        ),
+      });
+      return;
+    }
+    setAttendance({
+      status: "ready",
+      events: results.flatMap((result) =>
+        result.data.ok ? result.data.events : [],
+      ),
+      summaries: results.flatMap((result) =>
+        result.data.ok ? result.data.summaries ?? [] : [],
+      ),
+    });
+  }, [handleSessionExpired]);
+
   useEffect(() => {
     getCurrentStudent().then(async (student) => {
       setToday(getClientOperationalDate() ?? getTodaySeoulDate());
@@ -193,8 +257,9 @@ export function AppShell() {
     if (isLoggedIn && screen === "dashboard") {
       void refreshHistory();
       void refreshRecoveries();
+      void refreshAttendance();
     }
-  }, [isLoggedIn, screen, refreshHistory, refreshRecoveries]);
+  }, [isLoggedIn, screen, refreshAttendance, refreshHistory, refreshRecoveries]);
 
   function navigate(nextScreen: Screen) {
     setScreen(nextScreen);
@@ -204,7 +269,12 @@ export function AppShell() {
   async function handleDevDateChanged() {
     const date = getClientOperationalDate() ?? getTodaySeoulDate();
     setToday(date);
-    await Promise.all([refreshDaily(), refreshHistory(), refreshRecoveries()]);
+    await Promise.all([
+      refreshDaily(),
+      refreshHistory(),
+      refreshRecoveries(),
+      refreshAttendance(),
+    ]);
   }
 
   async function handleLogin(studentCode: string) {
@@ -318,6 +388,13 @@ export function AppShell() {
           history.status === "error" ? <LoadError message={history.message} onRetry={() => void refreshHistory()} /> :
           <DashboardScreen
             currentDate={today}
+            attendanceSummaries={attendance.status === "ready" ? attendance.summaries : []}
+            attendanceStatus={
+              attendance.status === "error"
+                ? { error: attendance.message }
+                : attendance.status
+            }
+            onRetryAttendance={() => void refreshAttendance()}
             onRetryRecoveries={() => void refreshRecoveries()}
             records={history.records}
             recoveries={recoveries.status === "ready" ? recoveries.recoveries : []}

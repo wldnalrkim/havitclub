@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { formatDateLabel, type DailyRecord } from "@/lib/mock-data";
 import type { Recovery } from "@/domain/recovery/recovery";
+import type { AttendanceSummary } from "@/domain/attendance/attendance";
 import { averageRate, getMonthCalendar, getWeekDates, summarizeRecords, type DaySummary } from "@/lib/progress";
 import { CarryOverBadge, StatusPill, SubjectTag, TaskStatusBadge } from "@/components/ui";
 
@@ -41,14 +42,36 @@ function getWeekFlow(rate: number | null) {
   return { label: "계획을 다듬어 봐요", tone: "amber" as const, message: "계획량이 많았는지 돌아보고, 해낼 수 있는 만큼 정해봐요." };
 }
 
+function formatMinutes(value: number | null) {
+  if (value === null) return "미확정";
+  const hours = Math.floor(value / 60);
+  const minutes = value % 60;
+  return hours > 0 ? `${hours}시간 ${minutes}분` : `${minutes}분`;
+}
+
+function attendanceStatusLabel(summary: AttendanceSummary | null) {
+  if (!summary) return { label: "출결 기록 없음", tone: "slate" as const };
+  if (summary.status === "checked_out") return { label: "하원 완료", tone: "green" as const };
+  if (summary.status === "in_progress") return { label: "체류 중", tone: "blue" as const };
+  if (summary.status === "away") return { label: "외출 중", tone: "amber" as const };
+  if (summary.status === "not_arrived") return { label: "출결 기록 없음", tone: "slate" as const };
+  return { label: "출결 확인 필요", tone: "amber" as const };
+}
+
 export function DashboardScreen({
+  attendanceStatus,
+  attendanceSummaries,
   currentDate,
+  onRetryAttendance,
   onRetryRecoveries,
   records,
   recoveries,
   recoveryStatus,
 }: {
+  attendanceStatus: "loading" | "ready" | { error: string };
+  attendanceSummaries: AttendanceSummary[];
   currentDate: string;
+  onRetryAttendance: () => void;
   onRetryRecoveries: () => void;
   records: DailyRecord[];
   recoveries: Recovery[];
@@ -64,6 +87,9 @@ export function DashboardScreen({
   const weekFlow = getWeekFlow(weekRate);
   const openRecoveries = recoveries.filter((recovery) => recovery.recoveryStatus === "pending");
   const resolvedRecoveries = recoveries.filter((recovery) => recovery.recoveryStatus === "completed");
+  const attendanceByDate = new Map(
+    attendanceSummaries.map((summary) => [summary.date, summary]),
+  );
 
   const stats = [
     { label: "계획 제출", value: `${weekSummaries.length}일`, note: "이번 주" },
@@ -73,6 +99,17 @@ export function DashboardScreen({
   ];
 
   const today = summaries.get(currentDate);
+  const todayAttendance = attendanceByDate.get(currentDate) ?? null;
+  const attendanceLabel = attendanceStatusLabel(todayAttendance);
+  const weekAttendance = getWeekDates(currentDate)
+    .map((date) => attendanceByDate.get(date))
+    .filter((summary): summary is AttendanceSummary => Boolean(summary));
+  const attendanceDays = weekAttendance.filter(
+    (summary) => summary.status !== "not_arrived",
+  ).length;
+  const checkedOutAttendanceDays = weekAttendance.filter(
+    (summary) => summary.status === "checked_out",
+  ).length;
   const calendar = getMonthCalendar(currentDate);
   const selectedRecord = recordByDate.get(selectedDate);
   const selectedTone = getDayTone(summaries.get(selectedDate));
@@ -99,6 +136,83 @@ export function DashboardScreen({
             </div>
           ))}
         </div>
+      </section>
+
+      <section className="rounded-3xl bg-white p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="font-bold text-[#334e68]">실제 출결 현황</h2>
+            <p className="mt-1 text-xs text-[#6b7b8c]">학습 계획과 별도로 기록된 출결만 표시해요.</p>
+          </div>
+          {attendanceStatus === "ready" && (
+            <StatusPill tone={attendanceLabel.tone}>{attendanceLabel.label}</StatusPill>
+          )}
+        </div>
+        {attendanceStatus === "loading" ? (
+          <p className="mt-4 text-sm text-[#718096]">출결 정보를 불러오는 중...</p>
+        ) : typeof attendanceStatus === "object" ? (
+          <div className="mt-4 space-y-3" role="alert">
+            <p className="text-sm font-medium text-[#b45353]">{attendanceStatus.error}</p>
+            <button
+              className="rounded-2xl border border-[#b8ccda] px-4 py-2.5 text-sm font-bold text-[#2f6690]"
+              onClick={onRetryAttendance}
+              type="button"
+            >
+              출결 다시 불러오기
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="rounded-2xl bg-[#f7f9fa] p-4">
+                <p className="text-xs text-[#6b7b8c]">실제 최초 등원</p>
+                <p className="mt-2 text-lg font-bold text-[#243b53]">{todayAttendance?.firstArrivalTime ?? "—"}</p>
+              </div>
+              <div className="rounded-2xl bg-[#f7f9fa] p-4">
+                <p className="text-xs text-[#6b7b8c]">실제 최종 하원</p>
+                <p className="mt-2 text-lg font-bold text-[#243b53]">{todayAttendance?.finalDepartureTime ?? "—"}</p>
+              </div>
+              <div className="rounded-2xl bg-[#f7f9fa] p-4">
+                <p className="text-xs text-[#6b7b8c]">확정 체류시간</p>
+                <p className="mt-2 text-lg font-bold text-[#243b53]">
+                  {todayAttendance?.status === "checked_out"
+                    ? formatMinutes(todayAttendance.confirmedDurationMinutes)
+                    : "미확정"}
+                </p>
+              </div>
+              <div className="rounded-2xl bg-[#f7f9fa] p-4">
+                <p className="text-xs text-[#6b7b8c]">확정 외출시간</p>
+                <p className="mt-2 text-lg font-bold text-[#243b53]">
+                  {todayAttendance && todayAttendance.status !== "away"
+                    ? formatMinutes(todayAttendance.awayDurationMinutes)
+                    : "미확정"}
+                </p>
+              </div>
+            </div>
+            {todayAttendance?.status === "in_progress" && (
+              <p className="mt-3 text-xs leading-5 text-[#6b7b8c]">
+                아직 하원 기록이 없어 하루 전체 체류시간은 확정되지 않았어요.
+              </p>
+            )}
+            {todayAttendance?.status === "away" && (
+              <p className="mt-3 text-xs leading-5 text-[#8a6d3b]">
+                외출 중이에요. 복귀 또는 하원 기록 후 체류시간을 확정할 수 있어요.
+              </p>
+            )}
+            {!todayAttendance && (
+              <p className="mt-3 text-xs leading-5 text-[#6b7b8c]">
+                출결 기록이 없는 날이며, 자동으로 결석 처리하지 않아요.
+              </p>
+            )}
+            <div className="mt-4 rounded-2xl border border-[#e5ebef] p-4">
+              <p className="text-xs font-semibold text-[#6b7b8c]">이번 주 실제 출결</p>
+              <p className="mt-2 text-lg font-bold text-[#243b53]">
+                기록 {attendanceDays}일 · 하원 완료 {checkedOutAttendanceDays}일
+              </p>
+              <p className="mt-1 text-xs text-[#8796a5]">출결 기록이 없는 날은 출석·결석으로 판정하지 않아요.</p>
+            </div>
+          </>
+        )}
       </section>
 
       <section className="rounded-3xl bg-[#243b53] p-5 text-white">
@@ -179,13 +293,18 @@ export function DashboardScreen({
           {Array.from({ length: calendar.leadingBlanks }, (_, index) => <span aria-hidden="true" key={`blank-${index}`} />)}
           {calendar.dates.map((date) => {
             const tone = getDayTone(summaries.get(date));
+            const attendanceSummary = attendanceByDate.get(date);
             const isFuture = date > currentDate;
             return (
               <button
-                aria-label={`${formatDateLabel(date)} ${dayToneLabels[tone].label}`}
+                aria-label={`${formatDateLabel(date)} ${dayToneLabels[tone].label}${
+                  attendanceSummary ? `, 출결 ${attendanceStatusLabel(attendanceSummary).label}` : ""
+                }`}
                 className={`relative grid aspect-square place-items-center rounded-xl text-xs font-semibold transition disabled:opacity-40 ${calendarToneStyles[tone]} ${
                   selectedDate === date ? "ring-2 ring-[#5d91b3] ring-offset-1" : "hover:opacity-80"
-                } ${date === currentDate ? "font-extrabold" : ""}`}
+                } ${date === currentDate ? "font-extrabold" : ""} ${
+                  attendanceSummary ? "border border-[#7fa8c9]" : ""
+                }`}
                 disabled={isFuture}
                 key={date}
                 onClick={() => setSelectedDate(date)}
@@ -193,6 +312,9 @@ export function DashboardScreen({
               >
                 {Number(date.slice(-2))}
                 {tone !== "empty" && <span className="absolute bottom-1 h-1 w-1 rounded-full bg-current" />}
+                {attendanceSummary && (
+                  <span className="absolute top-1 h-1 w-1 rounded-full bg-[#2f6690]" />
+                )}
               </button>
             );
           })}
@@ -201,6 +323,7 @@ export function DashboardScreen({
           <span className="flex items-center gap-1"><i className="h-2 w-2 rounded-full bg-[#7fc49c]" />모두 완료</span>
           <span className="flex items-center gap-1"><i className="h-2 w-2 rounded-full bg-[#e4b65f]" />이어서 할 일 있음</span>
           <span className="flex items-center gap-1"><i className="h-2 w-2 rounded-full bg-[#7fa8c9]" />체크아웃 전</span>
+          <span className="flex items-center gap-1"><i className="h-2 w-2 rounded-full bg-[#2f6690]" />출결 기록 있음</span>
         </div>
 
         <div className="mt-4 rounded-2xl bg-[#f7f9fa] p-4">

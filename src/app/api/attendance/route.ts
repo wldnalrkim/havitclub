@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { AttendanceService } from "@/application/services/attendance-service";
-import { AttendanceValidationError } from "@/domain/attendance/attendance";
+import {
+  AttendanceValidationError,
+  type AttendanceEvent,
+  type AttendanceSummary,
+} from "@/domain/attendance/attendance";
 import { getTodaySeoulDate } from "@/domain/weekly-schedule/weekly-schedule";
 import { NotionAttendanceRepository } from "@/repositories/notion/notion-attendance-repository";
 import { getSession } from "@/app/api/daily-commitments/shared";
@@ -44,26 +48,34 @@ export async function GET(request: Request) {
 
   try {
     const currentDate = getTodaySeoulDate();
-    const result = date
-      ? await attendanceService.getSummary(
-          session.studentId,
-          date,
-          currentDate,
-          date === currentDate ? getSeoulTime() : undefined,
-        )
-      : {
-          events: await attendanceService.getByStudentAndDateRange(
-          session.studentId,
-          from as string,
-          to as string,
-          ),
-          summary: null,
-        };
-    const { events, summary } = result;
+    let events: AttendanceEvent[];
+    let summary: AttendanceSummary | null = null;
+    let summaries: AttendanceSummary[] | undefined;
+    if (date) {
+      const result = await attendanceService.getSummary(
+        session.studentId,
+        date,
+        currentDate,
+        date === currentDate ? getSeoulTime() : undefined,
+      );
+      events = result.events;
+      summary = result.summary;
+    } else {
+      const result = await attendanceService.getSummaries(
+        session.studentId,
+        from as string,
+        to as string,
+        currentDate,
+        getSeoulTime(),
+      );
+      events = result.events;
+      summaries = result.summaries;
+    }
     return NextResponse.json({
       ok: true,
       count: events.length,
       summary,
+      summaries,
       events: events.map((event) => ({
         id: event.id,
         date: event.date,

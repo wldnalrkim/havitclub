@@ -46,4 +46,24 @@ export class AttendanceService {
     }
     return this.repository.findByStudentAndDateRange(studentId, from, to);
   }
+
+  async getSummaries(
+    studentId: string,
+    from: string,
+    to: string,
+    currentDate: string,
+    nowTime?: string,
+  ) {
+    const events = await this.getByStudentAndDateRange(studentId, from, to);
+    const dates = [...new Set(events.map((event) => event.date))];
+    const summaries = dates.map((date) =>
+      summarizeAttendance(
+        events.filter((event) => event.date === date),
+        date,
+        currentDate,
+        date === currentDate ? nowTime : undefined,
+      ),
+    );
+    return { events, summaries };
+  }
 }
