@@ -9,6 +9,7 @@ import type {
 } from "@/domain/daily-commitment/daily-commitment";
 import type { DailyCommitmentRepository } from "@/repositories/interfaces/daily-commitment-repository";
 import type { DailyCommitmentRevisionRepository } from "@/repositories/interfaces/daily-commitment-revision-repository";
+import { getNotionEnvironmentVariable } from "@/infrastructure/notion/config";
 
 const NOTION_VERSION = "2022-06-28";
 const DAILY_DATABASE_ENV = "NOTION_DAILY_COMMITMENT_DATABASE_ID";
@@ -227,7 +228,7 @@ function buildUpdateProperties(
 
 abstract class NotionRepositoryBase {
   protected get token() {
-    const token = process.env.NOTION_TOKEN;
+    const token = getNotionEnvironmentVariable("NOTION_TOKEN");
     if (!token) throw new NotionDailyCommitmentRepositoryError();
     return token;
   }
@@ -290,7 +291,7 @@ export class NotionDailyCommitmentRepository
   implements DailyCommitmentRepository
 {
   private get databaseId() {
-    const id = process.env[DAILY_DATABASE_ENV];
+    const id = getNotionEnvironmentVariable(DAILY_DATABASE_ENV);
     if (!id) throw new NotionDailyCommitmentRepositoryError();
     return id;
   }
@@ -448,7 +449,7 @@ export class NotionDailyCommitmentRevisionRepository
   implements DailyCommitmentRevisionRepository
 {
   private get databaseId() {
-    const id = process.env[REVISION_DATABASE_ENV];
+    const id = getNotionEnvironmentVariable(REVISION_DATABASE_ENV);
     if (!id) throw new NotionDailyCommitmentRepositoryError();
     return id;
   }

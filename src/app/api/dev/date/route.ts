@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { DEV_DATE_COOKIE_NAME } from "@/lib/dev-date";
+import { isTestDateOverrideEnabled } from "@/infrastructure/notion/config";
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 export async function POST(request: Request) {
-  if (process.env.NODE_ENV === "production") {
+  if (!isTestDateOverrideEnabled()) {
     return NextResponse.json({ ok: false }, { status: 404 });
   }
   const body = (await request.json()) as { date?: unknown };
@@ -22,7 +23,7 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE() {
-  if (process.env.NODE_ENV === "production") {
+  if (!isTestDateOverrideEnabled()) {
     return NextResponse.json({ ok: false }, { status: 404 });
   }
   const response = NextResponse.json({ ok: true });

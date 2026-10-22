@@ -6,6 +6,25 @@ function sourceKey(planId: string, taskId: string) {
   return `${planId}:${taskId}`;
 }
 
+const createLocks = new Map<string, Promise<void>>();
+
+async function withCreateLock<T>(key: string, operation: () => Promise<T>) {
+  const previous = createLocks.get(key) ?? Promise.resolve();
+  let release!: () => void;
+  const current = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const queued = previous.then(() => current);
+  createLocks.set(key, queued);
+  await previous;
+  try {
+    return await operation();
+  } finally {
+    release();
+    if (createLocks.get(key) === queued) createLocks.delete(key);
+  }
+}
+
 export class RecoveryService {
   constructor(private readonly repository: RecoveryRepository) {}
 
@@ -77,16 +96,28 @@ export class RecoveryService {
         }
 
         if (result.status === "completed") continue;
+        const recoveryStatus = result.status as "partial" | "incomplete";
         const key = sourceKey(commitment.id, task.id);
-        if (bySource.has(key)) continue;
-        const created = await this.repository.create({
-          studentId,
-          commitmentId: commitment.id,
-          task,
-          originalDate: commitment.date,
-          status: result.status,
-          reason: result.reason,
-          createdAt: timestamp,
+        const created = await withCreateLock(`${studentId}:${key}`, async () => {
+          if (bySource.has(key)) return bySource.get(key)!;
+          const existing = (await this.repository.findByStudent(studentId)).find(
+            (recovery) =>
+              recovery.originalPlanId === commitment.id &&
+              recovery.originalTaskId === task.id,
+          );
+          if (existing) {
+            bySource.set(key, existing);
+            return existing;
+          }
+          return this.repository.create({
+            studentId,
+            commitmentId: commitment.id,
+            task,
+            originalDate: commitment.date,
+            status: recoveryStatus,
+            reason: result.reason,
+            createdAt: timestamp,
+          });
         });
         bySource.set(key, created);
         byId.set(created.id, created);

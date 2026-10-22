@@ -1,5 +1,6 @@
 import type { StudentLookupResult } from "@/domain/student/student";
 import type { StudentRepository } from "@/repositories/interfaces/student-repository";
+import { getNotionEnvironmentVariable } from "@/infrastructure/notion/config";
 
 const NOTION_VERSION = "2022-06-28";
 const ATTENDANCE_CODE_PROPERTY = "출결번호";
@@ -39,8 +40,8 @@ function getTextValue(value: NotionText[] | undefined) {
 
 export class NotionStudentRepository implements StudentRepository {
   async findByAttendanceCode(code: string): Promise<StudentLookupResult> {
-    const token = process.env.NOTION_TOKEN;
-    const databaseId = process.env.NOTION_STUDENT_DATABASE_ID;
+    const token = getNotionEnvironmentVariable("NOTION_TOKEN");
+    const databaseId = getNotionEnvironmentVariable("NOTION_STUDENT_DATABASE_ID");
 
     if (!token || !databaseId) {
       throw new NotionStudentRepositoryError();

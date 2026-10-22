@@ -279,7 +279,7 @@ export function AppShell() {
         </div>
       </header>
       <main className="mx-auto max-w-3xl px-5 pb-28 pt-6">
-        {process.env.NODE_ENV !== "production" && (
+        {process.env.NEXT_PUBLIC_APP_ENV !== "production" && (
           <DevDateToolbar currentDate={today} onChanged={() => void handleDevDateChanged()} />
         )}
         {screen === "today" && renderDailyScreen(

@@ -1,6 +1,7 @@
 import type { Recovery, RecoveryInput, RecoveryStatus } from "@/domain/recovery/recovery";
 import type { RecoveryRepository } from "@/repositories/interfaces/recovery-repository";
 import { randomUUID } from "node:crypto";
+import { getNotionEnvironmentVariable } from "@/infrastructure/notion/config";
 
 const NOTION_VERSION = "2022-06-28";
 const MAX_QUERY_PAGES = 10;
@@ -62,13 +63,13 @@ function getSelect(property: Property | undefined) {
 
 export class NotionRecoveryRepository implements RecoveryRepository {
   private get databaseId() {
-    const value = process.env.NOTION_RECOVERY_DATABASE_ID;
+    const value = getNotionEnvironmentVariable("NOTION_RECOVERY_DATABASE_ID");
     if (!value) throw new NotionRecoveryRepositoryError();
     return value;
   }
 
   private async request(path: string, init: RequestInit) {
-    const token = process.env.NOTION_TOKEN;
+    const token = getNotionEnvironmentVariable("NOTION_TOKEN");
     if (!token) throw new NotionRecoveryRepositoryError();
     let response: Response;
     try {

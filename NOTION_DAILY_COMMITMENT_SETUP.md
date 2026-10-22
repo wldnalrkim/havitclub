@@ -51,6 +51,21 @@ NOTION_STUDENT_DATA_SOURCE_ID=
 
 실제 토큰과 ID는 Git에 커밋하지 않습니다.
 
+## Preview 테스트 환경
+
+Preview는 `VERCEL_ENV=preview`일 때 자동으로 `_TEST` 환경변수를 사용합니다. 로컬에서 같은 동작을 확인하려면 `NOTION_DATA_MODE=test`를 설정합니다.
+
+```text
+NOTION_TOKEN_TEST=
+NOTION_STUDENT_DATABASE_ID_TEST=
+NOTION_WEEKLY_SCHEDULE_DATABASE_ID_TEST=
+NOTION_DAILY_COMMITMENT_DATABASE_ID_TEST=
+NOTION_DAILY_COMMITMENT_REVISION_DATABASE_ID_TEST=
+NOTION_RECOVERY_DATABASE_ID_TEST=
+```
+
+테스트 학생명부와 모든 관련 DB는 운영 상위 페이지와 분리된 테스트 전용 상위 페이지에 구성합니다. `_TEST` 값이 없을 때 운영 DB로 대체하지 않으므로 Preview 배포 전에 모든 값을 등록해야 합니다.
+
 ## 데이터 정합성
 
 당일 계획 페이지 갱신과 변경 이력 페이지 추가는 Notion API의 별도 요청입니다. 이력 생성이 실패하면 API는 성공을 반환하지 않지만, 이미 계획 페이지가 갱신된 경우 자동 롤백은 보장되지 않습니다. 향후 Supabase 이전 또는 코치용 운영 기능에서 트랜잭션·복구 처리를 추가해야 합니다.

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getNotionEnvironmentVariable } from "@/infrastructure/notion/config";
 
 const NOTION_VERSION = "2022-06-28";
 
@@ -9,8 +10,8 @@ export async function GET() {
     return NextResponse.json({ ok: false }, { status: 404 });
   }
 
-  const token = process.env.NOTION_TOKEN;
-  const databaseId = process.env.NOTION_STUDENT_DATABASE_ID;
+  const token = getNotionEnvironmentVariable("NOTION_TOKEN");
+  const databaseId = getNotionEnvironmentVariable("NOTION_STUDENT_DATABASE_ID");
 
   if (!token || !databaseId) {
     return NextResponse.json(

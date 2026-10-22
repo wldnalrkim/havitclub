@@ -4,6 +4,7 @@ import type {
   WeeklyScheduleInput,
 } from "@/domain/weekly-schedule/weekly-schedule";
 import type { WeeklyScheduleRepository } from "@/repositories/interfaces/weekly-schedule-repository";
+import { getNotionEnvironmentVariable } from "@/infrastructure/notion/config";
 
 const NOTION_VERSION = "2022-06-28";
 const NAME_PROPERTY = "Name";
@@ -129,8 +130,8 @@ export class NotionWeeklyScheduleRepository
   implements WeeklyScheduleRepository
 {
   private getConfig() {
-    const token = process.env.NOTION_TOKEN;
-    const databaseId = process.env.NOTION_WEEKLY_SCHEDULE_DATABASE_ID;
+    const token = getNotionEnvironmentVariable("NOTION_TOKEN");
+    const databaseId = getNotionEnvironmentVariable("NOTION_WEEKLY_SCHEDULE_DATABASE_ID");
     if (!token || !databaseId) {
       throw new NotionWeeklyScheduleRepositoryError();
     }
